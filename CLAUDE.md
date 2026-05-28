@@ -26,6 +26,7 @@ End goal output (paraphrased):
 | **Capital** | $10,000 USD default | `--capital <usd>` CLI flag |
 | **Branch** | `claude/stock-prediction-bot-lHwxP` | All bot dev pushes here |
 | **Current version** | v8 (`versions/v8_goldbot.py`) | New work = `versions/v9_*.py` |
+| **Archive** | 9 files in `versions/` (v2, v4, v5, v6×2, v7, v7.1, v7.2, v8). Note: uploaded v5.1 was byte-identical to v5 — collapsed. | |
 
 **Swapping the ticker must always be a one-liner.** Never hard-code a symbol anywhere except `Config`. To switch from gold to SPY:
 

@@ -160,7 +160,7 @@ Known issues:
 
 ---
 
-## v5 / v5.1 — `versions/v5_monte_carlo.py` & `versions/v5_1_monte_carlo.py` — Walk-forward + modular OOP
+## v5 — `versions/v5_monte_carlo.py` — Walk-forward + modular OOP
 Asset: GLD.JO
 Improved:
 - Walk-forward expanding-window backtest with OOS Sharpe tracking
@@ -171,6 +171,10 @@ Known issues:
 - Computationally expensive
 - No equity curve visualization
 - Multi-ticker yfinance KeyError (fixed in v6)
+
+> Note: the `v5_1` upload provided to this project was byte-identical to v5
+> (verified by MD5). The v5.1 entry has been collapsed into v5; if a true
+> v5.1 file exists, re-upload it and add a separate entry.
 
 ---
 

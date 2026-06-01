@@ -1,4 +1,8 @@
-# data_feed.py dependencies
+# Core data pipeline
 yfinance>=0.2.40
 pandas>=2.0.0
 numpy>=1.26.0
+
+# Portfolio optimizer
+scipy>=1.11.0
+hmmlearn>=0.3.0   # optional — graceful fallback if absent

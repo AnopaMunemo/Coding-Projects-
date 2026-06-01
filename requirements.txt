@@ -10,3 +10,6 @@ hmmlearn>=0.3.0   # optional — graceful fallback if absent
 # Dashboard (app.py)
 streamlit>=1.30.0
 plotly>=5.18.0
+
+# PDF report export (report.py)
+reportlab>=4.0.0

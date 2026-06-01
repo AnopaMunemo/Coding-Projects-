@@ -11,6 +11,9 @@ env/
 # Streamlit
 .streamlit/secrets.toml
 
+# Generated MT5 signal exports
+mt5_signals/
+
 # OS / editor
 .DS_Store
 .vscode/

@@ -45,6 +45,19 @@ except Exception as exc:  # pragma: no cover
     _ENGINES = False
     _ENGINE_ERROR = str(exc)
 
+# Optional add-ons (graceful if their deps are missing)
+try:
+    from report import build_pdf_report
+    _REPORT = True
+except Exception:
+    _REPORT = False
+
+try:
+    from signal_export import export_signals
+    _SIGNAL_EXPORT = True
+except Exception:
+    _SIGNAL_EXPORT = False
+
 logging.basicConfig(level=logging.WARNING)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -566,6 +579,27 @@ with tab_port:
     if result is None:
         st.warning("Run the engine to see portfolio output.")
     else:
+        # ── Export bar ────────────────────────────────────────────────────
+        exp_col1, exp_col2 = st.columns([3, 1])
+        with exp_col2:
+            if _REPORT:
+                try:
+                    pdf_bytes = build_pdf_report(
+                        result=result, signals=signals,
+                        fi_bundle=bundle.get("fixed_income", {}),
+                        budget_zar=budget_zar, usd_zar=usd_zar,
+                        forex_wf=forex_wf,
+                    )
+                    st.download_button(
+                        "📄 Download PDF Report", data=pdf_bytes,
+                        file_name=f"atlas_report_{datetime.now():%Y%m%d_%H%M}.pdf",
+                        mime="application/pdf", use_container_width=True,
+                    )
+                except Exception as exc:
+                    st.caption(f"PDF unavailable: {exc}")
+            else:
+                st.caption("Install reportlab for PDF export")
+
         # ── Headline metric cards ─────────────────────────────────────────
         c1, c2, c3, c4 = st.columns(4)
         regime_color = {"Bull":"green","Bear":"red","Sideways":"gold"}.get(result.regime,"white")
@@ -772,6 +806,18 @@ with tab_fx:
         f3.markdown(metric_card("Recovery Mode", str(rec_active), "trades recovering losses", "gold"), unsafe_allow_html=True)
         avg_conf = np.mean([s.confidence for s in signals]) if signals else 0
         f4.markdown(metric_card("Avg Confidence", f"{avg_conf:.0%}", "filter agreement", "green"), unsafe_allow_html=True)
+
+        # ── Export signals to MetaTrader 5 ────────────────────────────────
+        if _SIGNAL_EXPORT:
+            ec1, ec2 = st.columns([3, 1])
+            with ec2:
+                if st.button("📡 Export to MT5", use_container_width=True,
+                             help="Write atlas_signals.csv/.json for the MQL5 EA"):
+                    try:
+                        path = export_signals(signals, account_equity=budget_usd)
+                        st.success(f"Exported → {path}")
+                    except Exception as exc:
+                        st.error(f"Export failed: {exc}")
 
         st.markdown("<br>", unsafe_allow_html=True)
 

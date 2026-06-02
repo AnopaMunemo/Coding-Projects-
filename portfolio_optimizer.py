@@ -26,6 +26,9 @@ from scipy.optimize import minimize
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+# ── 10-year US Treasury Bond rate — strict filter baseline ───────────────────
+RISK_FREE_RATE_10Y = 0.0445   # ~4.45% — assets below this are excluded
+
 try:
     from hmmlearn.hmm import GaussianHMM
     _HMM_AVAILABLE = True
@@ -71,13 +74,33 @@ class _Constraints:
 
 @dataclass
 class PortfolioAllocation:
-    ticker:       str
-    asset_class:  str   # 'equity' | 'fixed_income'
-    weight:       float
+    ticker:        str
+    asset_class:   str     # 'equity' | 'fixed_income'
+    weight:        float
     dollar_amount: float
-    shares:       float
-    price:        float
-    rationale:    str
+    shares:        float
+    price:         float
+    rationale:     str
+    beta:          float = 1.0   # systematic risk vs market proxy
+    treynor_ratio: float = 0.0   # (E[R] - Rf) / Beta
+    expected_return: float = 0.0 # annualised expected return
+
+
+# ── Beta & Treynor utilities ──────────────────────────────────────────────────
+
+def calculate_beta(asset_returns: pd.Series, market_returns: pd.Series) -> float:
+    """Beta = Cov(asset, market) / Var(market). Returns 1.0 on insufficient data."""
+    aligned = pd.concat([asset_returns, market_returns], axis=1).dropna()
+    if len(aligned) < 10:
+        return 1.0
+    cov_mat = aligned.cov().values
+    market_var = cov_mat[1, 1]
+    return float(cov_mat[0, 1] / market_var) if market_var > 1e-12 else 1.0
+
+
+def calculate_treynor(ann_return: float, beta: float, rf: float = RISK_FREE_RATE_10Y) -> float:
+    """Treynor Ratio = (E[R] - Rf) / Beta."""
+    return (ann_return - rf) / beta if abs(beta) > 1e-9 else 0.0
 
 
 @dataclass
@@ -627,6 +650,21 @@ class PortfolioOptimizer:
         regime, regime_conf = self._detect_regime(eq_ret)
         self._log.info("Detected regime: %s (confidence %.0f%%)", regime, regime_conf * 100)
 
+        # ── Filter: exclude assets below 10-year TB rate ─────────────────
+        # Compute equal-weighted market proxy for beta calculation
+        market_proxy = eq_ret.mean(axis=1) if not eq_ret.empty else pd.Series(dtype=float)
+        # Drop tickers whose annualised expected return < RISK_FREE_RATE_10Y
+        if not eq_ret.empty:
+            ann_means = eq_ret.mean() * 252
+            passed = [t for t in eq_ret.columns if ann_means[t] >= RISK_FREE_RATE_10Y]
+            if len(passed) >= 3:
+                eq_ret = eq_ret[passed]
+                eq_tickers = list(eq_ret.columns)
+                self._log.info("TB-rate filter: %d/%d equity tickers passed (≥%.2f%% ann. return)",
+                               len(passed), len(ann_means), RISK_FREE_RATE_10Y * 100)
+            else:
+                self._log.info("TB-rate filter: too few assets passed; keeping all (synthetic/bear market data)")
+
         # ── Equity weights ────────────────────────────────────────────────
         eq_weights = (
             self._optimise_equity_weights(eq_ret, regime)
@@ -661,20 +699,22 @@ class PortfolioOptimizer:
 
         for ticker, w in zip(eq_tickers, eq_weights):
             dollar = eq_budget * float(w)
-            # Fetch current price from history
             hist = self.bundle["equity"]["histories"].get(ticker)
             price = float(hist["Close"].iloc[-1]) if hist is not None and not hist.empty else 0.0
             shares = (dollar / price) if price > 0 else 0.0
 
-            # Rationale: is it value-screened?
+            # Beta & Treynor
+            ticker_ret = eq_ret[ticker] if ticker in eq_ret.columns else pd.Series(dtype=float)
+            beta_val = calculate_beta(ticker_ret, market_proxy) if not ticker_ret.empty and not market_proxy.empty else 1.0
+            ann_ret_ticker = float(ticker_ret.mean() * 252) if not ticker_ret.empty else 0.0
+            treynor_val = calculate_treynor(ann_ret_ticker, beta_val)
+
             if not screened_df.empty and "ticker" in screened_df.columns:
                 row = screened_df[screened_df["ticker"] == ticker]
                 if not row.empty:
                     pe  = row["trailingPE"].values[0]
                     mos = row.get("grahamMoS", pd.Series([None])).values[0]
-                    rationale = (
-                        f"Value-screened: P/E={pe:.1f}" if pe else "Value screen"
-                    )
+                    rationale = f"Value-screened: P/E={pe:.1f}" if pe else "Value screen"
                     if mos and not np.isnan(mos):
                         rationale += f", Graham MoS={mos:.0%}"
                 else:
@@ -689,6 +729,9 @@ class PortfolioOptimizer:
                 shares=round(shares, 4),
                 price=round(price, 4),
                 rationale=rationale,
+                beta=round(beta_val, 4),
+                treynor_ratio=round(treynor_val, 4),
+                expected_return=round(ann_ret_ticker, 6),
             ))
 
         for ticker, w in zip(fi_tickers, fi_weights):
@@ -705,6 +748,8 @@ class PortfolioOptimizer:
                     ytm = row["ytm_proxy"].values[0]
                     ytm_str = f", YTM≈{ytm:.2%}" if ytm else ""
 
+            fi_ticker_ret = fi_ret[ticker] if ticker in fi_ret.columns else pd.Series(dtype=float)
+            fi_ann_ret = float(fi_ticker_ret.mean() * 252) if not fi_ticker_ret.empty else 0.0
             allocations.append(PortfolioAllocation(
                 ticker=ticker, asset_class="fixed_income",
                 weight=round(float(w) * target_fi_frac, 6),
@@ -712,6 +757,9 @@ class PortfolioOptimizer:
                 shares=round(shares, 4),
                 price=round(price, 4),
                 rationale=f"{self.req.risk_appetite} fixed-income{ytm_str}",
+                beta=round(calculate_beta(fi_ticker_ret, market_proxy) if not fi_ticker_ret.empty and not market_proxy.empty else 0.3, 4),
+                treynor_ratio=round(calculate_treynor(fi_ann_ret, 0.3), 4),
+                expected_return=round(fi_ann_ret, 6),
             ))
 
         # ── Portfolio analytics ───────────────────────────────────────────

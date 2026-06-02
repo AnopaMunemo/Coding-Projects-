@@ -13,3 +13,5 @@ plotly>=5.18.0
 
 # PDF report export (report.py)
 reportlab>=4.0.0
+
+# Strategy library (strategies.py) — all stdlib, no extra deps

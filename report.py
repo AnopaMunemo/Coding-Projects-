@@ -39,6 +39,29 @@ LIGHT    = colors.HexColor("#e8edf7") if _REPORTLAB else None
 ROW_ALT  = colors.HexColor("#f4f6fb") if _REPORTLAB else None
 
 
+# ── Safe formatters — never crash on None / NaN from live API ─────────────────
+
+def _f(value: Any, spec: str, fallback: str = "—") -> str:
+    """Format value with spec; return fallback if None, NaN, or error."""
+    if value is None:
+        return fallback
+    try:
+        if isinstance(value, float) and value != value:   # NaN check
+            return fallback
+        return format(value, spec)
+    except (ValueError, TypeError):
+        return fallback
+
+
+def _zar_safe(usd: Any, rate: float, fallback: str = "—") -> str:
+    if usd is None:
+        return fallback
+    try:
+        return f"R{float(usd) * rate:,.2f}"
+    except (ValueError, TypeError):
+        return fallback
+
+
 def _styles():
     ss = getSampleStyleSheet()
     ss.add(ParagraphStyle("AtlasTitle", parent=ss["Title"],
@@ -129,10 +152,11 @@ def build_pdf_report(
 
     # ── Header ────────────────────────────────────────────────────────────
     story.append(Paragraph("ATLAS CAPITAL · Strategy Report", ss["AtlasTitle"]))
+    budget_usd = budget_zar / max(usd_zar, 0.01)
     story.append(Paragraph(
         f"Generated {datetime.now():%Y-%m-%d %H:%M} · "
-        f"Budget {_zar(budget_zar / usd_zar, usd_zar)} "
-        f"(≈ ${budget_zar / usd_zar:,.2f}) · USD/ZAR {usd_zar:.2f}",
+        f"Budget R{budget_zar:,.2f} (approx ${budget_usd:,.2f}) · "
+        f"USD/ZAR {usd_zar:.2f}",
         ss["AtlasSub"]))
     story.append(HRFlowable(width="100%", color=TEAL, thickness=1.5))
     story.append(Spacer(1, 8))
@@ -140,31 +164,43 @@ def build_pdf_report(
     # ── Probability banner ────────────────────────────────────────────────
     if result is not None:
         req = result.request
+        prob_str   = _f(result.monte_carlo_prob,   ".0%", "—")
+        tgt_str    = _f(getattr(req, "target_return", None), ".0%", "—")
+        med_str    = _f(result.mc_median_return,   "+.1%", "—")
+        p10_str    = _f(result.mc_p10,             "+.1%", "—")
+        p90_str    = _f(result.mc_p90,             "+.1%", "—")
+        n_sims     = getattr(req, "monte_carlo_sims", 10_000)
+        horizon    = getattr(req, "time_horizon_months", "?")
+
         banner = Table([[Paragraph(
-            f"<b>Hold for {req.time_horizon_months} months → "
-            f"{result.monte_carlo_prob:.0%} likelihood of a "
-            f"{req.target_return:.0%}+ gain</b><br/>"
-            f"<font size=9 color='#cfe9e4'>Median {result.mc_median_return:+.1%} · "
-            f"downside (P10) {result.mc_p10:+.1%} · upside (P90) {result.mc_p90:+.1%} · "
-            f"{req.monte_carlo_sims:,} Monte-Carlo paths</font>",
+            f"<b>Hold for {horizon} months  →  {prob_str} likelihood of a "
+            f"{tgt_str}+ gain</b><br/>"
+            f"<font size=9 color='#cfe9e4'>Median {med_str} · "
+            f"downside P10 {p10_str} · upside P90 {p90_str} · "
+            f"{n_sims:,} Monte-Carlo paths</font>",
             ss["Banner"])]], colWidths=[178 * mm])
         banner.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#13302c")),
-            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("TOPPADDING",    (0, 0), (-1, -1), 12),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
-            ("LEFTPADDING", (0, 0), (-1, -1), 16),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 16),
-            ("LINEBELOW", (0, 0), (-1, -1), 2, GOLD),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 16),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 16),
+            ("LINEBELOW",     (0, 0), (-1, -1), 2, GOLD),
         ]))
         story.append(banner)
         story.append(Spacer(1, 12))
 
         # ── KPI cards ─────────────────────────────────────────────────────
+        regime_lbl  = f"{result.regime} ({_f(result.regime_confidence, '.0%')})"
+        ret_lbl     = _f(result.expected_return, ".1%")
+        sharpe_lbl  = _f(result.sharpe_ratio, ".2f")
+        eq_lbl      = _f(result.equity_weight, ".0%")
+        fi_lbl      = _f(result.fi_weight,     ".0%")
         story.append(_metric_table([
-            f"REGIME\n{result.regime} ({result.regime_confidence:.0%})",
-            f"EXPECTED RETURN\n{result.expected_return:.1%} p.a.",
-            f"SHARPE\n{result.sharpe_ratio:.2f}",
-            f"EQUITY / FI\n{result.equity_weight:.0%} / {result.fi_weight:.0%}",
+            f"REGIME\n{regime_lbl}",
+            f"EXPECTED RETURN\n{ret_lbl} p.a.",
+            f"SHARPE\n{sharpe_lbl}",
+            f"EQUITY / FI\n{eq_lbl} / {fi_lbl}",
         ]))
         story.append(Spacer(1, 14))
 
@@ -173,24 +209,24 @@ def build_pdf_report(
         rows = []
         for a in result.allocations:
             rows.append([
-                a.ticker,
+                str(a.ticker),
                 "Equity" if a.asset_class == "equity" else "Fixed Income",
-                f"{a.weight:.1%}",
-                _zar(a.dollar_amount, usd_zar),
-                f"${a.price:,.2f}",
-                f"{a.shares:.4f}",
-                a.rationale[:42],
+                _f(a.weight,        ".1%"),
+                _zar_safe(a.dollar_amount, usd_zar),
+                _f(a.price,         ",.2f", "—"),
+                _f(a.shares,        ".4f",  "—"),
+                str(a.rationale)[:42],
             ])
         story.append(_data_table(
-            ["Ticker", "Class", "Weight", "Allocation", "Price", "Units", "Rationale"],
+            ["Ticker", "Class", "Weight", "Allocation (ZAR)", "Price ($)", "Units", "Rationale"],
             rows,
             col_widths=[18*mm, 22*mm, 16*mm, 26*mm, 20*mm, 18*mm, 58*mm],
         ))
         story.append(Spacer(1, 6))
         story.append(Paragraph(
-            f"Total invested: {_zar(result.total_invested, usd_zar)} of "
-            f"{_zar(budget_zar / usd_zar, usd_zar)} budget · "
-            f"Expected volatility {result.expected_volatility:.1%} p.a.",
+            f"Total invested: {_zar_safe(result.total_invested, usd_zar)} of "
+            f"R{budget_zar:,.2f} budget · "
+            f"Expected volatility {_f(result.expected_volatility, '.1%')} p.a.",
             ss["AtlasNote"]))
 
         # ── Walk-forward ──────────────────────────────────────────────────
@@ -199,8 +235,10 @@ def build_pdf_report(
             story.append(Paragraph("Walk-Forward Validation (out-of-sample)", ss["AtlasH2"]))
             story.append(_data_table(
                 ["Windows", "Win Rate", "OOS Sharpe", "Max Drawdown"],
-                [[str(wf.windows), f"{wf.win_rate:.0%}",
-                  f"{wf.mean_oos_sharpe:.2f}", f"{wf.max_drawdown:.1%}"]],
+                [[str(wf.windows),
+                  _f(wf.win_rate,           ".0%"),
+                  _f(wf.mean_oos_sharpe,    ".2f"),
+                  _f(wf.max_drawdown,       ".1%")]],
                 col_widths=[44*mm]*4,
             ))
 
@@ -209,16 +247,19 @@ def build_pdf_report(
         story.append(Paragraph("Forex Signal Feed", ss["AtlasH2"]))
         rows = []
         for s in sorted(signals, key=lambda x: x.confidence, reverse=True):
-            ent = f"{s.entry_window_utc[0]:02d}-{s.entry_window_utc[1]:02d}h"
-            ext = f"{s.exit_window_utc[0]:02d}-{s.exit_window_utc[1]:02d}h"
+            ew = getattr(s, "entry_window_utc", (0, 0))
+            xw = getattr(s, "exit_window_utc",  (0, 0))
+            ent = f"{ew[0]:02d}-{ew[1]:02d}h"
+            ext = f"{xw[0]:02d}-{xw[1]:02d}h"
             rows.append([
-                s.pair,
-                s.direction + (" (R)" if s.recovery_mode else ""),
+                str(s.pair),
+                s.direction + (" (R)" if getattr(s, "recovery_mode", False) else ""),
                 ent, ext,
-                f"{s.stop_loss}", f"{s.take_profit}",
-                f"1:{s.risk_reward:.2f}",
-                f"{s.lot_size}",
-                f"{s.confidence:.0%}",
+                _f(s.stop_loss,    "g",   str(s.stop_loss)),
+                _f(s.take_profit,  "g",   str(s.take_profit)),
+                f"1:{_f(s.risk_reward, '.2f')}",
+                _f(s.lot_size,     "g",   "—"),
+                _f(s.confidence,   ".0%", "—"),
             ])
         story.append(_data_table(
             ["Pair", "Dir", "Entry(UTC)", "Exit(UTC)", "Stop", "Target", "RR", "Lot", "Conf"],
@@ -237,9 +278,12 @@ def build_pdf_report(
         rows = []
         for _, r in forex_wf.items():
             rows.append([
-                r.pair, str(r.total_trades), f"{r.win_rate:.0%}",
-                _zar(r.total_pnl_usd, usd_zar), f"{r.profit_factor:.2f}",
-                f"{r.sharpe:.2f}",
+                str(r.pair),
+                str(r.total_trades),
+                _f(r.win_rate,      ".0%"),
+                _zar_safe(r.total_pnl_usd, usd_zar),
+                _f(r.profit_factor, ".2f"),
+                _f(r.sharpe,        ".2f"),
             ])
         if rows:
             story.append(_data_table(
@@ -253,23 +297,27 @@ def build_pdf_report(
         valid = etf.dropna(subset=["ytm_proxy"]).sort_values("ytm_proxy", ascending=False)
         rows = []
         for _, r in valid.iterrows():
+            dur = r.get("duration_years")
             rows.append([
                 str(r["ticker"]),
                 str(r.get("name", "—"))[:34],
-                f"{r['ytm_proxy']:.2%}",
-                f"{r.get('duration_years', float('nan')):.1f}"
-                if r.get("duration_years") == r.get("duration_years") else "—",
+                _f(r["ytm_proxy"], ".2%"),
+                _f(dur, ".1f") if dur is not None else "—",
             ])
         story.append(_data_table(
             ["Ticker", "Fund", "YTM", "Duration (yrs)"], rows,
             col_widths=[22*mm, 80*mm, 30*mm, 36*mm]))
 
         slope = fi_bundle.get("curve_slope_bp")
-        if slope is not None:
-            tag = "INVERTED — recession signal" if slope < 0 else "normal upward slope"
+        slope_str = _f(slope, "+.0f")
+        if slope is not None and slope_str != "—":
+            try:
+                tag = "INVERTED — recession signal" if float(slope) < 0 else "normal upward slope"
+            except (TypeError, ValueError):
+                tag = "—"
             story.append(Spacer(1, 4))
             story.append(Paragraph(
-                f"US Treasury 10Y–3M spread: {slope:+.0f} bp ({tag}).",
+                f"US Treasury 10Y-3M spread: {slope_str} bp ({tag}).",
                 ss["AtlasNote"]))
 
     # ── Footer / disclaimer ───────────────────────────────────────────────

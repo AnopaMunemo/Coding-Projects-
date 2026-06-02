@@ -236,14 +236,37 @@ def metric_card(label: str, value: str, sub: str = "", color: str = "white") -> 
     """
 
 
-def rand(amount: float) -> str:
+def rand(amount) -> str:
     """Format a USD amount as ZAR string using the session rate."""
-    rate = st.session_state.get("usd_zar", 18.5)
-    return f"R{amount * rate:,.2f}"
+    if amount is None:
+        return "R—"
+    try:
+        rate = st.session_state.get("usd_zar", 18.5)
+        return f"R{float(amount) * rate:,.2f}"
+    except (TypeError, ValueError):
+        return "R—"
 
 
-def rand_raw(zar_amount: float) -> str:
-    return f"R{zar_amount:,.2f}"
+def rand_raw(zar_amount) -> str:
+    if zar_amount is None:
+        return "R—"
+    try:
+        return f"R{float(zar_amount):,.2f}"
+    except (TypeError, ValueError):
+        return "R—"
+
+
+def _sf(value, spec: str, fallback: str = "—") -> str:
+    """Safe formatter — returns fallback string instead of crashing on None/NaN."""
+    if value is None:
+        return fallback
+    try:
+        import math
+        if isinstance(value, float) and math.isnan(value):
+            return fallback
+        return format(value, spec)
+    except (TypeError, ValueError):
+        return fallback
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -604,21 +627,22 @@ with tab_port:
         c1, c2, c3, c4 = st.columns(4)
         regime_color = {"Bull":"green","Bear":"red","Sideways":"gold"}.get(result.regime,"white")
         c1.markdown(metric_card(
-            "Market Regime", result.regime,
-            f"{result.regime_confidence:.0%} model confidence", regime_color
+            "Market Regime", result.regime or "Unknown",
+            f"{_sf(result.regime_confidence, '.0%')} model confidence", regime_color
         ), unsafe_allow_html=True)
         c2.markdown(metric_card(
-            "Expected Return", f"{result.expected_return:.1%}",
-            f"per annum · Sharpe {result.sharpe_ratio:.2f}", "teal"
+            "Expected Return", _sf(result.expected_return, '.1%'),
+            f"per annum · Sharpe {_sf(result.sharpe_ratio, '.2f')}", "teal"
         ), unsafe_allow_html=True)
         c3.markdown(metric_card(
             "Allocation Split",
-            f"{result.equity_weight:.0%} / {result.fi_weight:.0%}",
+            f"{_sf(result.equity_weight, '.0%')} / {_sf(result.fi_weight, '.0%')}",
             "equity / fixed income", "blue"
         ), unsafe_allow_html=True)
-        prob_color = "green" if result.monte_carlo_prob >= 0.6 else ("gold" if result.monte_carlo_prob >= 0.4 else "red")
+        _prob = result.monte_carlo_prob
+        prob_color = "green" if (_prob is not None and _prob >= 0.6) else ("gold" if (_prob is not None and _prob >= 0.4) else "red")
         c4.markdown(metric_card(
-            f"P(≥{target_return:.0%} profit)", f"{result.monte_carlo_prob:.0%}",
+            f"P(≥{target_return:.0%} profit)", _sf(_prob, '.0%'),
             f"holding {time_horizon} months", prob_color
         ), unsafe_allow_html=True)
 
@@ -626,11 +650,11 @@ with tab_port:
         st.markdown(f"""
         <div class="hero" style="margin-top:18px;">
             <h1 style="font-size:1.5rem;">
-            Hold for {time_horizon} months → {result.monte_carlo_prob:.0%} likelihood
+            Hold for {time_horizon} months → {_sf(result.monte_carlo_prob, '.0%')} likelihood
             of a {target_return:.0%}+ gain</h1>
-            <p>Median projected outcome: <b style="color:#34d399;">{result.mc_median_return:+.1%}</b>
-            &nbsp;·&nbsp; downside (P10): <b style="color:#f87171;">{result.mc_p10:+.1%}</b>
-            &nbsp;·&nbsp; upside (P90): <b style="color:#2dd4bf;">{result.mc_p90:+.1%}</b>
+            <p>Median projected outcome: <b style="color:#34d399;">{_sf(result.mc_median_return, '+.1%')}</b>
+            &nbsp;·&nbsp; downside (P10): <b style="color:#f87171;">{_sf(result.mc_p10, '+.1%')}</b>
+            &nbsp;·&nbsp; upside (P90): <b style="color:#2dd4bf;">{_sf(result.mc_p90, '+.1%')}</b>
             &nbsp;·&nbsp; based on {result.request.monte_carlo_sims:,} Monte-Carlo paths</p>
         </div>
         """, unsafe_allow_html=True)
@@ -725,22 +749,23 @@ with tab_port:
             wf = result.walk_forward
             w1,w2,w3,w4 = st.columns(4)
             w1.markdown(metric_card("WF Windows", str(wf.windows), "out-of-sample", "white"), unsafe_allow_html=True)
-            w2.markdown(metric_card("OOS Win Rate", f"{wf.win_rate:.0%}", "positive months", "green"), unsafe_allow_html=True)
-            w3.markdown(metric_card("OOS Sharpe", f"{wf.mean_oos_sharpe:.2f}", "risk-adjusted", "teal"), unsafe_allow_html=True)
-            w4.markdown(metric_card("Max Drawdown", f"{wf.max_drawdown:.1%}", "worst peak-trough", "red"), unsafe_allow_html=True)
+            w2.markdown(metric_card("OOS Win Rate", _sf(wf.win_rate, '.0%'), "positive months", "green"), unsafe_allow_html=True)
+            w3.markdown(metric_card("OOS Sharpe", _sf(wf.mean_oos_sharpe, '.2f'), "risk-adjusted", "teal"), unsafe_allow_html=True)
+            w4.markdown(metric_card("Max Drawdown", _sf(wf.max_drawdown, '.1%'), "worst peak-trough", "red"), unsafe_allow_html=True)
 
         # ── Recommended portfolio table ───────────────────────────────────
         st.markdown('<div class="section-title">Recommended Portfolio · regime-optimised allocation</div>',
                     unsafe_allow_html=True)
         alloc_rows = []
         for a in result.allocations:
+            price_str = f"${a.price:,.2f}" if a.price is not None else "—"
             alloc_rows.append({
                 "Ticker": a.ticker,
                 "Class": "📈 Equity" if a.asset_class=="equity" else "🏦 Fixed Income",
-                "Weight": f"{a.weight:.1%}",
+                "Weight": _sf(a.weight, '.1%'),
                 "Allocation (ZAR)": rand(a.dollar_amount),
-                "Price": f"${a.price:,.2f}",
-                "Units": f"{a.shares:.4f}",
+                "Price": price_str,
+                "Units": _sf(a.shares, '.4f'),
                 "Rationale": a.rationale,
             })
         st.dataframe(pd.DataFrame(alloc_rows), use_container_width=True, hide_index=True)
@@ -748,7 +773,7 @@ with tab_port:
         cc1, cc2 = st.columns(2)
         cc1.markdown(metric_card("Total Invested", rand(result.total_invested),
                                  f"of {rand_raw(budget_zar)} budget", "gold"), unsafe_allow_html=True)
-        cc2.markdown(metric_card("Expected Volatility", f"{result.expected_volatility:.1%}",
+        cc2.markdown(metric_card("Expected Volatility", _sf(result.expected_volatility, '.1%'),
                                  "annualised", "blue"), unsafe_allow_html=True)
 
         # ── Undervalued picks + fundamentals ──────────────────────────────
@@ -893,11 +918,11 @@ with tab_fx:
         for pair, r in forex_wf.items():
             wf_rows.append({
                 "Pair": r.pair, "Trades": r.total_trades,
-                "Win Rate": f"{r.win_rate:.0%}",
+                "Win Rate": _sf(r.win_rate, '.0%'),
                 "Net PnL": rand(r.total_pnl_usd),
-                "Profit Factor": f"{r.profit_factor:.2f}",
+                "Profit Factor": _sf(r.profit_factor, '.2f'),
                 "Max DD": rand(r.max_drawdown_usd),
-                "Sharpe": f"{r.sharpe:.2f}",
+                "Sharpe": _sf(r.sharpe, '.2f'),
             })
         if wf_rows:
             st.dataframe(pd.DataFrame(wf_rows), use_container_width=True, hide_index=True)

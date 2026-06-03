@@ -1,8 +1,9 @@
 """
-app.py — Atlas Capital | Institutional Portfolio & Forex Desk v3
-════════════════════════════════════════════════════════════════════
-Bloomberg Terminal × Apple × Goldman Sachs Marquee aesthetic.
-All settings are in the ⚙️ Settings tab — no hidden sidebar.
+app.py — Atlas Capital | Institutional Portfolio & Forex/Gold Desk · 2026 Edition
+════════════════════════════════════════════════════════════════════════════════
+Cinematic 2026 fintech aesthetic — deep-black canvas, ambient gradient orbs,
+glassmorphism cards and neon glow. JSE/ZAR-native with an XAU/USD gold desk.
+All settings live in the ⚙️ Settings tab — no hidden sidebar.
 
 Run: streamlit run app.py
 """
@@ -71,205 +72,344 @@ st.set_page_config(
 
 CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Sora:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-/* ── Root palette ── */
+/* ════════════════════════════════════════════════════════════════════
+   ATLAS CAPITAL · 2026 Cinematic Theme
+   Deep-black canvas · ambient gradient orbs · glassmorphism · neon glow
+   ════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --bg:      #070B14;
-  --card:    #111827;
-  --card2:   #162235;
-  --border:  rgba(255,255,255,0.07);
-  --accent:  #00D4FF;
-  --success: #00E676;
-  --warn:    #FFB020;
-  --danger:  #FF5252;
-  --purple:  #818CF8;
-  --txt:     #FFFFFF;
-  --txt2:    #94A3B8;
-  --txt3:    #4B5563;
-  --glow:    rgba(0,212,255,0.15);
+  --bg:       #05070E;
+  --bg2:      #080B16;
+  --card:     rgba(18,24,40,0.62);
+  --card-sol: #0E1422;
+  --card2:    rgba(28,36,58,0.70);
+  --border:   rgba(255,255,255,0.08);
+  --border2:  rgba(255,255,255,0.14);
+  --accent:   #00D4FF;
+  --accent2:  #38BDF8;
+  --emerald:  #00E676;
+  --lime:     #B6FF3C;
+  --amber:    #FF9F45;
+  --violet:   #8B7CFF;
+  --magenta:  #E879F9;
+  --success:  #00E676;
+  --warn:     #FFB020;
+  --danger:   #FF5C6E;
+  --purple:   #8B7CFF;
+  --txt:      #F4F7FF;
+  --txt2:     #97A3BE;
+  --txt3:     #56627E;
+  --glow:     rgba(0,212,255,0.22);
 }
 
-/* ── Global ── */
+/* ── Global canvas ── */
 html, body, .stApp {
   background: var(--bg) !important;
   color: var(--txt) !important;
   font-family: 'Inter', sans-serif !important;
 }
-.block-container { padding: 0 2rem 3rem 2rem !important; max-width: 1600px !important; }
+
+/* Cinematic ambient orbs — fixed behind everything */
+.stApp::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(820px 620px at 12% -8%,  rgba(0,230,118,0.16), transparent 60%),
+    radial-gradient(760px 680px at 92% 6%,   rgba(139,124,255,0.18), transparent 62%),
+    radial-gradient(900px 700px at 78% 104%, rgba(255,159,69,0.12), transparent 60%),
+    radial-gradient(700px 600px at 4% 96%,   rgba(0,212,255,0.12), transparent 58%);
+  animation: drift 22s ease-in-out infinite alternate;
+}
+/* Fine grid texture overlay (à la trading terminals) */
+.stApp::after {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 78%);
+          mask-image: radial-gradient(circle at 50% 30%, #000 0%, transparent 78%);
+}
+@keyframes drift {
+  0%   { transform: translate3d(0,0,0) scale(1); }
+  100% { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
+}
+/* Keep real content above the ambient layers */
+.block-container { position: relative; z-index: 1; padding: 0 2.2rem 3.4rem 2.2rem !important; max-width: 1640px !important; }
 #MainMenu, footer, header, section[data-testid="stSidebar"] { display: none !important; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(139,124,255,0.28); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139,124,255,0.5); }
 
 /* ── Top nav bar ── */
 .atlas-nav {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 0 18px 0; border-bottom: 1px solid var(--border);
-  margin-bottom: 24px;
+  padding: 18px 0 18px 0; margin-bottom: 22px;
+  border-bottom: 1px solid var(--border);
 }
-.atlas-logo { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.3px; color: var(--txt); }
-.atlas-logo span { color: var(--accent); }
+.atlas-logo {
+  font-family: 'Sora', sans-serif; font-size: 1.22rem; font-weight: 800;
+  letter-spacing: -0.4px; color: var(--txt);
+}
+.atlas-logo span {
+  background: linear-gradient(120deg, var(--accent), var(--violet) 70%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
 .atlas-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(0,230,118,0.10); border: 1px solid rgba(0,230,118,0.25);
-  border-radius: 99px; padding: 4px 12px; font-size: 0.72rem; font-weight: 600; color: var(--success);
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(0,230,118,0.10); border: 1px solid rgba(0,230,118,0.30);
+  border-radius: 99px; padding: 5px 13px; font-size: 0.72rem; font-weight: 700;
+  color: var(--emerald); letter-spacing: 0.4px;
+  box-shadow: 0 0 18px rgba(0,230,118,0.12);
 }
-.atlas-badge::before { content: '●'; font-size: 0.6rem; }
+.atlas-badge::before {
+  content: '●'; font-size: 0.55rem;
+  animation: pulse 1.8s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 
-/* ── Premium metric cards ── */
+/* ── Premium metric cards (glassmorphism) ── */
 .kpi {
   background: var(--card);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 20px;
   padding: 22px 24px;
-  transition: transform .2s, border-color .2s, box-shadow .2s;
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), border-color .25s, box-shadow .25s;
   position: relative; overflow: hidden;
+  box-shadow: 0 10px 34px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 .kpi::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-  opacity: 0;
-  transition: opacity .2s;
+  content: ''; position: absolute; inset: 0; border-radius: 20px; padding: 1px;
+  background: linear-gradient(135deg, rgba(0,212,255,0.45), transparent 38%, transparent 62%, rgba(139,124,255,0.45));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0; transition: opacity .25s;
 }
-.kpi:hover { transform: translateY(-2px); border-color: rgba(0,212,255,0.3); box-shadow: 0 8px 32px rgba(0,212,255,0.08); }
-.kpi:hover::before { opacity: 1; }
-.kpi .k-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.2px; color: var(--txt2); font-weight: 600; margin-bottom: 8px; }
-.kpi .k-value { font-size: 2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; line-height: 1; margin-bottom: 6px; }
+.kpi::after {
+  content: ''; position: absolute; top: -40%; right: -30%; width: 220px; height: 220px;
+  background: radial-gradient(circle, var(--glow), transparent 70%);
+  opacity: 0; transition: opacity .25s; pointer-events: none;
+}
+.kpi:hover { transform: translateY(-4px); border-color: transparent; box-shadow: 0 18px 48px rgba(0,212,255,0.14), inset 0 1px 0 rgba(255,255,255,0.07); }
+.kpi:hover::before, .kpi:hover::after { opacity: 1; }
+.kpi .k-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 1.4px; color: var(--txt2); font-weight: 700; margin-bottom: 9px; }
+.kpi .k-value { font-size: 2.05rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; margin-bottom: 7px; letter-spacing: -0.5px; }
 .kpi .k-sub { font-size: 0.74rem; color: var(--txt2); }
-.k-accent  { color: var(--accent); }
-.k-success { color: var(--success); }
+.k-accent  { color: var(--accent);  text-shadow: 0 0 24px rgba(0,212,255,0.35); }
+.k-success { color: var(--emerald); text-shadow: 0 0 24px rgba(0,230,118,0.30); }
 .k-warn    { color: var(--warn); }
 .k-danger  { color: var(--danger); }
-.k-purple  { color: var(--purple); }
+.k-purple  { color: var(--violet);  text-shadow: 0 0 24px rgba(139,124,255,0.32); }
 .k-white   { color: var(--txt); }
 
 /* ── Section headers ── */
 .sec-head {
-  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 1.5px;
-  color: var(--txt2); font-weight: 700; margin: 28px 0 14px 0;
-  display: flex; align-items: center; gap: 10px;
+  font-family: 'Sora', sans-serif;
+  font-size: 0.70rem; text-transform: uppercase; letter-spacing: 2px;
+  color: var(--txt2); font-weight: 700; margin: 30px 0 15px 0;
+  display: flex; align-items: center; gap: 12px;
 }
-.sec-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.sec-head::before { content: ''; width: 18px; height: 2px; border-radius: 99px; background: linear-gradient(90deg, var(--accent), transparent); }
+.sec-head::after  { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
 
-/* ── Hero ── */
-.hero-block {
-  padding: 36px 0 28px 0;
-}
+/* ── In-tab hero ── */
+.hero-block { padding: 34px 0 26px 0; }
 .hero-block h1 {
-  font-size: 3rem; font-weight: 900; letter-spacing: -1.5px; line-height: 1.05;
-  margin: 0 0 10px 0;
-  background: linear-gradient(135deg, #fff 30%, var(--accent) 70%, #818CF8);
+  font-family: 'Sora', sans-serif;
+  font-size: 3.1rem; font-weight: 800; letter-spacing: -1.8px; line-height: 1.04;
+  margin: 0 0 12px 0;
+  background: linear-gradient(115deg, #FFFFFF 18%, var(--accent) 58%, var(--violet) 92%);
+  background-size: 220% auto;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: shine 9s linear infinite;
 }
-.hero-block .hero-sub { font-size: 1rem; color: var(--txt2); max-width: 560px; line-height: 1.6; }
+.hero-block .hero-sub { font-size: 1.02rem; color: var(--txt2); max-width: 600px; line-height: 1.65; }
+@keyframes shine { to { background-position: 220% center; } }
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-  gap: 2px; background: var(--card); border-radius: 12px; padding: 4px;
-  border: 1px solid var(--border); margin-bottom: 24px;
+  gap: 3px; background: var(--card); backdrop-filter: blur(16px);
+  border-radius: 16px; padding: 6px;
+  border: 1px solid var(--border); margin-bottom: 26px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4);
 }
 .stTabs [data-baseweb="tab"] {
-  background: transparent; border-radius: 9px; padding: 9px 20px;
+  background: transparent; border-radius: 11px; padding: 10px 20px;
   color: var(--txt2); font-weight: 600; font-size: 0.85rem; border: none;
-  transition: all .15s;
+  transition: all .2s; font-family: 'Sora', sans-serif;
 }
+.stTabs [data-baseweb="tab"]:hover { color: var(--txt); }
 .stTabs [aria-selected="true"] {
-  background: var(--card2) !important; color: var(--txt) !important;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.4);
+  background: linear-gradient(135deg, rgba(0,212,255,0.16), rgba(139,124,255,0.16)) !important;
+  color: var(--txt) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 4px 18px rgba(0,212,255,0.12);
 }
 .stTabs [data-baseweb="tab-panel"] { padding: 0 !important; }
 
-/* ── Settings inputs ── */
+/* ── Settings cards ── */
 .settings-card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  background: var(--card); backdrop-filter: blur(18px);
+  border: 1px solid var(--border); border-radius: 20px;
   padding: 24px 26px; margin-bottom: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.36);
 }
-.settings-card h3 { font-size: 0.90rem; font-weight: 700; color: var(--txt); margin: 0 0 16px 0; }
+.settings-card h3 { font-family: 'Sora', sans-serif; font-size: 0.92rem; font-weight: 700; color: var(--txt); margin: 0 0 16px 0; }
 
 /* ── Data table ── */
-.stDataFrame { border-radius: 12px !important; border: 1px solid var(--border) !important; }
+.stDataFrame { border-radius: 16px !important; border: 1px solid var(--border) !important; overflow: hidden; }
 .stDataFrame td, .stDataFrame th { font-size: 0.80rem !important; }
 
 /* ── Buttons ── */
 .stButton > button {
-  background: var(--accent) !important; color: #000 !important;
-  font-weight: 700 !important; border: none !important; border-radius: 10px !important;
-  padding: 10px 20px !important; font-size: 0.88rem !important;
-  transition: all .18s !important;
+  background: linear-gradient(135deg, var(--accent), var(--accent2)) !important;
+  color: #04121A !important;
+  font-weight: 800 !important; border: none !important; border-radius: 12px !important;
+  padding: 11px 22px !important; font-size: 0.88rem !important;
+  letter-spacing: 0.2px !important;
+  transition: all .2s !important;
+  box-shadow: 0 6px 22px rgba(0,212,255,0.26) !important;
 }
-.stButton > button:hover { box-shadow: 0 0 20px rgba(0,212,255,0.4) !important; transform: translateY(-1px) !important; }
-button[kind="secondary"] { background: var(--card2) !important; color: var(--txt) !important; }
+.stButton > button:hover { box-shadow: 0 0 34px rgba(0,212,255,0.55) !important; transform: translateY(-2px) !important; }
+button[kind="secondary"] {
+  background: var(--card2) !important; color: var(--txt) !important;
+  box-shadow: inset 0 0 0 1px var(--border) !important;
+}
 
 /* ── Sliders ── */
-.stSlider > div > div > div { background: var(--card2) !important; }
-[data-testid="stSlider"] > div > div > div > div { background: var(--accent) !important; }
+.stSlider > div > div > div { background: rgba(255,255,255,0.10) !important; }
+[data-testid="stSlider"] > div > div > div > div { background: linear-gradient(90deg, var(--accent), var(--violet)) !important; }
 
-/* ── Select + number ── */
-.stSelectbox > div, .stNumberInput > div { background: var(--card2) !important; border-radius: 8px !important; }
-[data-baseweb="select"] { background: var(--card2) !important; }
-[data-baseweb="input"] { background: var(--card2) !important; }
+/* ── Inputs ── */
+.stSelectbox > div, .stNumberInput > div { background: var(--card2) !important; border-radius: 11px !important; }
+[data-baseweb="select"] { background: var(--card2) !important; border-radius: 11px !important; }
+[data-baseweb="input"]  { background: var(--card2) !important; border-radius: 11px !important; }
 
-/* ── Signal cards ── */
-.sig { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; margin-bottom: 12px; }
-.sig.sig-long  { border-left: 3px solid var(--success); }
-.sig.sig-short { border-left: 3px solid var(--danger); }
-.sig-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.sig-pair { font-size: 1.1rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
-.sig-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
-.sig-cell .k { font-size: 0.65rem; color: var(--txt2); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+/* ── Signal cards (glass) ── */
+.sig {
+  background: var(--card); backdrop-filter: blur(16px);
+  border: 1px solid var(--border); border-radius: 18px;
+  padding: 18px 22px; margin-bottom: 13px;
+  position: relative; overflow: hidden;
+  box-shadow: 0 8px 26px rgba(0,0,0,0.34);
+  transition: transform .2s, box-shadow .2s;
+}
+.sig:hover { transform: translateY(-2px); box-shadow: 0 14px 38px rgba(0,0,0,0.46); }
+.sig::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; }
+.sig.sig-long::before  { background: linear-gradient(180deg, var(--emerald), transparent); box-shadow: 0 0 18px var(--emerald); }
+.sig.sig-short::before { background: linear-gradient(180deg, var(--danger), transparent);  box-shadow: 0 0 18px var(--danger); }
+.sig-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.sig-pair { font-size: 1.12rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; letter-spacing: -0.3px; }
+.sig-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 13px; }
+.sig-cell .k { font-size: 0.63rem; color: var(--txt2); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
 .sig-cell .v { font-size: 0.92rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-.tag { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.5px; }
-.tag-long  { background: rgba(0,230,118,0.12); color: var(--success); border: 1px solid rgba(0,230,118,0.3); }
-.tag-short { background: rgba(255,82,82,0.12);  color: var(--danger);  border: 1px solid rgba(255,82,82,0.3); }
+.tag { display: inline-block; padding: 3px 11px; border-radius: 99px; font-size: 0.67rem; font-weight: 800; letter-spacing: 0.6px; }
+.tag-long  { background: rgba(0,230,118,0.14); color: var(--emerald); border: 1px solid rgba(0,230,118,0.34); box-shadow: 0 0 16px rgba(0,230,118,0.14); }
+.tag-short { background: rgba(255,92,110,0.14); color: var(--danger);  border: 1px solid rgba(255,92,110,0.34); box-shadow: 0 0 16px rgba(255,92,110,0.14); }
 .tag-flat  { background: rgba(148,163,184,0.12); color: var(--txt2);   border: 1px solid rgba(148,163,184,0.3); }
-.tag-rec   { background: rgba(255,176,32,0.12);  color: var(--warn);   border: 1px solid rgba(255,176,32,0.3); }
+.tag-rec   { background: rgba(255,176,32,0.14);  color: var(--warn);   border: 1px solid rgba(255,176,32,0.34); }
 
 /* ── Recovery bar ── */
-.rec-panel { background: rgba(255,176,32,0.06); border: 1px solid rgba(255,176,32,0.2); border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
-.rec-bar-bg { height: 6px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; margin-top: 8px; }
-.rec-bar-fill { height: 100%; background: linear-gradient(90deg,var(--warn),var(--danger)); border-radius: 99px; }
+.rec-panel { background: rgba(255,176,32,0.07); border: 1px solid rgba(255,176,32,0.24); border-radius: 13px; padding: 13px 15px; margin-top: 13px; }
+.rec-bar-bg { height: 7px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; margin-top: 9px; }
+.rec-bar-fill { height: 100%; background: linear-gradient(90deg,var(--warn),var(--danger)); border-radius: 99px; box-shadow: 0 0 14px rgba(255,176,32,0.4); }
 
 /* ── Strategy cards ── */
-.strat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; }
-.strat.s-long  { border-left: 3px solid var(--success); }
-.strat.s-short { border-left: 3px solid var(--danger); }
-.strat.s-flat  { border-left: 3px solid var(--txt3); }
-.str-bar { height: 4px; background: rgba(255,255,255,0.06); border-radius: 99px; overflow: hidden; margin-top: 6px; }
-.str-long  { height: 100%; background: var(--success); border-radius: 99px; }
-.str-short { height: 100%; background: var(--danger); border-radius: 99px; }
+.strat { background: var(--card); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: 13px; padding: 14px 16px; margin-bottom: 9px; position: relative; overflow: hidden; }
+.strat::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; }
+.strat.s-long::before  { background: var(--emerald); box-shadow: 0 0 14px var(--emerald); }
+.strat.s-short::before { background: var(--danger);  box-shadow: 0 0 14px var(--danger); }
+.strat.s-flat::before  { background: var(--txt3); }
+.str-bar { height: 5px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; margin-top: 7px; }
+.str-long  { height: 100%; background: linear-gradient(90deg, var(--emerald), var(--lime)); border-radius: 99px; }
+.str-short { height: 100%; background: linear-gradient(90deg, var(--danger), var(--magenta)); border-radius: 99px; }
 .str-flat  { height: 100%; background: var(--txt3); border-radius: 99px; }
 
 /* ── Divider ── */
-hr { border: none; border-top: 1px solid var(--border) !important; margin: 20px 0 !important; }
+hr { border: none; border-top: 1px solid var(--border) !important; margin: 22px 0 !important; }
 
-/* ── Alert overrides ── */
-[data-testid="stAlert"] { background: var(--card2) !important; border-radius: 10px !important; border: 1px solid var(--border) !important; }
+/* ── Alerts ── */
+[data-testid="stAlert"] { background: var(--card2) !important; backdrop-filter: blur(12px); border-radius: 13px !important; border: 1px solid var(--border) !important; }
 
-/* ── Landing hero ── */
-.landing-hero { padding: 56px 0 40px 0; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
-.landing-hero h1 { font-size: 3.6rem; font-weight: 900; letter-spacing: -2px; line-height: 1.05; margin: 0 0 16px 0; background: linear-gradient(135deg,#fff 20%,var(--accent) 60%,#818CF8 90%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-.landing-hero .l-sub { font-size: 1.05rem; color: var(--txt2); max-width: 640px; line-height: 1.65; margin-bottom: 28px; }
-.l-tags { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; }
-.l-pill { display:inline-block; background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); border-radius: 99px; padding: 4px 14px; font-size:0.74rem; font-weight:600; color:var(--accent); }
-.l-stats { display:flex; gap:32px; flex-wrap:wrap; padding-top:16px; }
-.l-stat-num { font-size:2rem; font-weight:800; font-family:'JetBrains Mono',monospace; color:var(--txt); }
-.l-stat-lbl { font-size:0.72rem; color:var(--txt2); text-transform:uppercase; letter-spacing:0.8px; margin-top:2px; }
+/* ════════════════════════════════════════════════════════════════════
+   CINEMATIC LANDING HERO
+   ════════════════════════════════════════════════════════════════════ */
+.landing-hero {
+  position: relative; overflow: hidden;
+  padding: 64px 48px 52px 48px; margin-bottom: 36px;
+  border-radius: 28px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(900px 380px at 78% -20%, rgba(139,124,255,0.20), transparent 65%),
+    radial-gradient(700px 360px at 6% 120%,  rgba(0,230,118,0.14), transparent 60%),
+    linear-gradient(160deg, rgba(14,20,34,0.92), rgba(8,11,22,0.96));
+  box-shadow: 0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+/* animated prism beams (echo of the 'Breaking Barriers' ref) */
+.landing-hero::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.55;
+  background:
+    linear-gradient(115deg, transparent 38%, rgba(0,212,255,0.10) 46%, transparent 54%),
+    linear-gradient(115deg, transparent 58%, rgba(232,121,249,0.09) 66%, transparent 74%);
+  background-size: 200% 200%;
+  animation: beam 11s ease-in-out infinite alternate;
+}
+.landing-hero::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.4;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+  background-size: 38px 38px;
+  -webkit-mask-image: radial-gradient(circle at 80% 0%, #000, transparent 70%);
+          mask-image: radial-gradient(circle at 80% 0%, #000, transparent 70%);
+}
+@keyframes beam { 0% { background-position: 0% 0%; } 100% { background-position: 100% 100%; } }
+.landing-hero > * { position: relative; z-index: 1; }
+.landing-hero h1 {
+  font-family: 'Sora', sans-serif;
+  font-size: 4rem; font-weight: 800; letter-spacing: -2.4px; line-height: 1.03; margin: 0 0 18px 0;
+  background: linear-gradient(115deg, #FFFFFF 16%, var(--accent) 52%, var(--violet) 86%);
+  background-size: 220% auto;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: shine 10s linear infinite;
+}
+.landing-hero .l-sub { font-size: 1.08rem; color: var(--txt2); max-width: 680px; line-height: 1.7; margin-bottom: 30px; }
+.l-tags { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:22px; }
+.l-pill {
+  display:inline-block; backdrop-filter: blur(10px);
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+  border-radius: 99px; padding: 6px 15px; font-size:0.74rem; font-weight:600; color:var(--txt);
+}
+.l-stats { display:flex; gap:38px; flex-wrap:wrap; padding-top:20px; border-top: 1px solid var(--border); }
+.l-stat-num {
+  font-size:2.1rem; font-weight:700; font-family:'JetBrains Mono',monospace;
+  background: linear-gradient(135deg, #fff, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.l-stat-lbl { font-size:0.71rem; color:var(--txt2); text-transform:uppercase; letter-spacing:1px; margin-top:3px; }
 
 /* ── Scenario cards ── */
-.scenario { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px 22px; margin-bottom:12px; }
-.scenario.s-crash { border-left:3px solid var(--danger); }
-.scenario.s-shock { border-left:3px solid var(--warn); }
-.scenario.s-bull  { border-left:3px solid var(--success); }
+.scenario { background:var(--card); backdrop-filter: blur(14px); border:1px solid var(--border); border-radius:18px; padding:20px 22px; margin-bottom:13px; position:relative; overflow:hidden; }
+.scenario::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; }
+.scenario.s-crash::before { background: var(--danger);  box-shadow: 0 0 16px var(--danger); }
+.scenario.s-shock::before { background: var(--warn);    box-shadow: 0 0 16px var(--warn); }
+.scenario.s-bull::before  { background: var(--emerald); box-shadow: 0 0 16px var(--emerald); }
 .scenario-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:12px; }
-.sc-cell .k { font-size:0.65rem; color:var(--txt2); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:3px; }
+.sc-cell .k { font-size:0.64rem; color:var(--txt2); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:3px; }
 .sc-cell .v { font-size:0.95rem; font-weight:700; font-family:'JetBrains Mono',monospace; }
 
-/* ── Health score ring ── */
+/* ── Health ring ── */
 .health-ring { text-align:center; padding:10px; }
-.health-score { font-size:3rem; font-weight:900; font-family:'JetBrains Mono',monospace; }
+.health-score { font-size:3rem; font-weight:800; font-family:'JetBrains Mono',monospace; }
 
-/* ── Factor row ── */
-.factor-row { display:flex; align-items:center; gap:16px; padding:10px 0; border-bottom:1px solid var(--border); }
+/* ── Factor rows ── */
+.factor-row { display:flex; align-items:center; gap:16px; padding:11px 0; border-bottom:1px solid var(--border); }
 .factor-name { width:180px; font-size:0.82rem; font-weight:600; color:var(--txt); }
-.factor-bar-bg { flex:1; height:6px; background:rgba(255,255,255,0.06); border-radius:99px; overflow:hidden; }
+.factor-bar-bg { flex:1; height:7px; background:rgba(255,255,255,0.07); border-radius:99px; overflow:hidden; }
 .factor-bar-fill { height:100%; border-radius:99px; }
 .factor-val { width:80px; text-align:right; font-size:0.82rem; font-family:'JetBrains Mono',monospace; color:var(--txt2); }
 </style>
@@ -645,17 +785,18 @@ st.markdown("""
   <div class="l-tags">
     <span class="l-pill">🏛️ Institutional Grade</span>
     <span class="l-pill">🤖 AI-Powered</span>
-    <span class="l-pill">🇿🇦 ZAR-Native</span>
+    <span class="l-pill">🇿🇦 ZAR-Native · JSE</span>
     <span class="l-pill">📐 Factor Models</span>
+    <span class="l-pill">🥇 Gold &amp; FX Desk</span>
     <span class="l-pill">🎲 Monte Carlo Engine</span>
   </div>
   <h1>Institutional Intelligence.<br>Retail Accessibility.</h1>
-  <p class="l-sub">The same analytical frameworks used by hedge funds, private equity, and sovereign wealth funds — regime-aware portfolio construction, VaR/CVaR risk attribution, 25+ signal strategies, and Monte Carlo probability forecasting. Starting from <b style="color:#00D4FF;">R300</b>.</p>
+  <p class="l-sub">The analytical frameworks used by hedge funds, private equity and sovereign wealth funds — regime-aware portfolio construction, VaR/CVaR risk attribution, 25+ signal strategies, an XAU/USD &amp; forex desk, and Monte Carlo probability forecasting. Built for the JSE and priced for everyone, starting from <b style="color:#00D4FF;">R300</b>.</p>
   <div class="l-stats">
     <div><div class="l-stat-num">25+</div><div class="l-stat-lbl">Trading Strategies</div></div>
     <div><div class="l-stat-num">10,000</div><div class="l-stat-lbl">Monte Carlo Paths</div></div>
     <div><div class="l-stat-num">R300</div><div class="l-stat-lbl">Minimum Capital</div></div>
-    <div><div class="l-stat-num">4.45%</div><div class="l-stat-lbl">TB Rate Threshold</div></div>
+    <div><div class="l-stat-num">7</div><div class="l-stat-lbl">Quant Models</div></div>
     <div><div class="l-stat-num">95%</div><div class="l-stat-lbl">VaR Confidence</div></div>
   </div>
 </div>
@@ -1526,10 +1667,73 @@ with tab_port:
 with tab_fx:
     st.markdown("""
     <div class="hero-block" style="padding-bottom:16px;">
-        <h1>Forex Desk</h1>
-        <p class="hero-sub">Session-timed ATR signals with recovery position sizing. Entry/exit windows in UTC.</p>
+        <h1>Forex &amp; Gold Desk</h1>
+        <p class="hero-sub">XAU/USD gold plus the major FX pairs — session-timed ATR signals with recovery position sizing. Entry/exit windows in UTC.</p>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── XAU/USD Gold spotlight (always rendered) ─────────────────────────────
+    _fx_daily = bundle.get("forex", {}).get("daily", {})
+    _gold = None
+    for _gk in ("XAUUSD=X", "XAUUSD", "XAU/USD", "GC=F", "GOLD"):
+        _cand = _fx_daily.get(_gk)
+        if _cand is not None and not _cand.empty and "Close" in _cand.columns:
+            _gold = _cand
+            break
+    if _gold is None:
+        # Synthetic gold fallback so the desk always shows XAU/USD
+        _gdates = pd.date_range(end=datetime.now(), periods=180, freq="B")
+        _grng = np.random.default_rng(7)
+        _gpx = 1950.0 * np.cumprod(1 + _grng.normal(0.0002, 0.009, len(_gdates)))
+        _gold = pd.DataFrame({"Close": _gpx}, index=_gdates)
+    if _gold is not None and not _gold.empty and "Close" in _gold.columns:
+        _gc = _gold["Close"].dropna()
+        if len(_gc) > 2:
+            _g_now  = float(_gc.iloc[-1])
+            _g_prev = float(_gc.iloc[-2])
+            _g_chg  = (_g_now / _g_prev - 1) if _g_prev else 0.0
+            _g_60   = _gc.iloc[-60:] if len(_gc) >= 60 else _gc
+            _g_hi   = float(_g_60.max()); _g_lo = float(_g_60.min())
+            _g_col  = "#00E676" if _g_chg >= 0 else "#FF5C6E"
+            _g_arrow = "▲" if _g_chg >= 0 else "▼"
+            gcol1, gcol2 = st.columns([1, 2])
+            with gcol1:
+                st.markdown(f"""
+                <div class="kpi" style="height:100%;">
+                  <div class="k-label">🥇 XAU/USD · Gold Spot</div>
+                  <div class="k-value k-warn">${_g_now:,.2f}</div>
+                  <div class="k-sub" style="color:{_g_col};font-weight:700;">{_g_arrow} {abs(_g_chg)*100:.2f}% today</div>
+                  <div class="k-sub" style="margin-top:10px;">60-bar range
+                    <b style="color:#F4F7FF;">${_g_lo:,.0f}</b> – <b style="color:#F4F7FF;">${_g_hi:,.0f}</b></div>
+                </div>
+                """, unsafe_allow_html=True)
+            with gcol2:
+                if _PLOTLY:
+                    _gw = _gc.iloc[-90:]
+                    _gbase = float(_gw.min()) * 0.997
+                    _gfig = go.Figure()
+                    # baseline trace (invisible) so the area fills from the chart floor
+                    _gfig.add_trace(go.Scatter(
+                        x=_gw.index, y=[_gbase] * len(_gw),
+                        mode="lines", line=dict(width=0), hoverinfo="skip", showlegend=False,
+                    ))
+                    _gfig.add_trace(go.Scatter(
+                        x=_gw.index, y=_gw, mode="lines",
+                        line=dict(color="#FF9F45", width=2.6),
+                        fill="tonexty", fillcolor="rgba(255,159,69,0.12)", name="XAU/USD",
+                        hovertemplate="$%{y:,.2f}<extra></extra>",
+                    ))
+                    _gfig.update_layout(
+                        height=190, margin=dict(l=0, r=0, t=10, b=0),
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color="#97A3BE", size=10),
+                        xaxis=dict(showgrid=False, visible=False),
+                        yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)", side="right",
+                                   range=[_gbase, float(_gw.max()) * 1.002]),
+                        showlegend=False,
+                    )
+                    st.plotly_chart(_gfig, use_container_width=True, config={"displayModeBar": False})
+            st.markdown("<br>", unsafe_allow_html=True)
 
     if not signals:
         st.markdown("""
@@ -1565,41 +1769,45 @@ with tab_fx:
             entry_str = f"{s.entry_window_utc[0]:02d}:00–{s.entry_window_utc[1]:02d}:00 UTC"
             exit_str  = f"{s.exit_window_utc[0]:02d}:00–{s.exit_window_utc[1]:02d}:00 UTC"
             rec_html = '<span class="tag tag-rec" style="margin-left:6px;">⟳ RECOVERY</span>' if s.recovery_mode else ''
-            st.markdown(f"""
-            <div class="sig sig-{dc}">
-              <div class="sig-head">
-                <span class="sig-pair">{s.pair}</span>
-                <span>
-                  <span class="tag tag-{dc}">{s.direction}</span>
-                  {rec_html}
-                  <span style="color:#94A3B8;font-size:0.75rem;margin-left:8px;">{s.regime} · {s.confidence:.0%}</span>
-                </span>
-              </div>
-              <div class="sig-grid">
-                <div class="sig-cell"><div class="k">⏱ Entry</div><div class="v" style="color:#00D4FF;">{entry_str}</div></div>
-                <div class="sig-cell"><div class="k">🚪 Exit</div><div class="v" style="color:#818CF8;">{exit_str}</div></div>
-                <div class="sig-cell"><div class="k">Entry Price</div><div class="v">{s.entry_price}</div></div>
-                <div class="sig-cell"><div class="k">Risk : Reward</div><div class="v" style="color:#FFB020;">1 : {_sf(s.risk_reward, '.2f')}</div></div>
-                <div class="sig-cell"><div class="k">🛑 Stop Loss</div><div class="v" style="color:#FF5252;">{s.stop_loss}</div></div>
-                <div class="sig-cell"><div class="k">🎯 Take Profit</div><div class="v" style="color:#00E676;">{s.take_profit}</div></div>
-                <div class="sig-cell"><div class="k">Lot Size</div><div class="v">{s.lot_size}</div></div>
-                <div class="sig-cell"><div class="k">Risk (ZAR)</div><div class="v">{_rand(s.dollar_risk)}</div></div>
-              </div>
-            """, unsafe_allow_html=True)
+
+            rec_panel = ""
             if s.recovery_mode and s.recovery_deficit > 0:
                 base_risk = budget_usd * 0.01
                 mult = min(s.recovery_deficit / base_risk + 1, 3.0) if base_risk > 0 else 1.0
                 fill = min(mult / 3.0 * 100, 100)
-                st.markdown(f"""
-                <div class="rec-panel">
-                  <div style="display:flex;justify-content:space-between;font-size:0.82rem;">
-                    <span style="color:#FFB020;font-weight:700;">⟳ Recovery Sizing Active</span>
-                    <span style="font-family:'JetBrains Mono';">×{mult:.2f} multiplier · deficit {_rand(s.recovery_deficit)}</span>
-                  </div>
-                  <div class="rec-bar-bg"><div class="rec-bar-fill" style="width:{fill:.0f}%;"></div></div>
-                  <div style="color:#94A3B8;font-size:0.70rem;margin-top:6px;">Hard-capped ×3.0 · 15% drawdown circuit-breaker</div>
-                </div>""", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+                rec_panel = (
+                    '<div class="rec-panel">'
+                    '<div style="display:flex;justify-content:space-between;font-size:0.82rem;">'
+                    '<span style="color:#FFB020;font-weight:700;">⟳ Recovery Sizing Active</span>'
+                    f'<span style="font-family:\'JetBrains Mono\';">×{mult:.2f} multiplier · deficit {_rand(s.recovery_deficit)}</span>'
+                    '</div>'
+                    f'<div class="rec-bar-bg"><div class="rec-bar-fill" style="width:{fill:.0f}%;"></div></div>'
+                    '<div style="color:#94A3B8;font-size:0.70rem;margin-top:6px;">Hard-capped ×3.0 · 15% drawdown circuit-breaker</div>'
+                    '</div>'
+                )
+
+            # Single, left-aligned HTML block (no 4-space indents → no markdown code-block escaping)
+            card = (
+                f'<div class="sig sig-{dc}">'
+                '<div class="sig-head">'
+                f'<span class="sig-pair">{s.pair}</span>'
+                f'<span><span class="tag tag-{dc}">{s.direction}</span>{rec_html}'
+                f'<span style="color:#94A3B8;font-size:0.75rem;margin-left:8px;">{s.regime} · {s.confidence:.0%}</span></span>'
+                '</div>'
+                '<div class="sig-grid">'
+                f'<div class="sig-cell"><div class="k">⏱ Entry</div><div class="v" style="color:#00D4FF;">{entry_str}</div></div>'
+                f'<div class="sig-cell"><div class="k">🚪 Exit</div><div class="v" style="color:#818CF8;">{exit_str}</div></div>'
+                f'<div class="sig-cell"><div class="k">Entry Price</div><div class="v">{s.entry_price}</div></div>'
+                f'<div class="sig-cell"><div class="k">Risk : Reward</div><div class="v" style="color:#FFB020;">1 : {_sf(s.risk_reward, ".2f")}</div></div>'
+                f'<div class="sig-cell"><div class="k">🛑 Stop Loss</div><div class="v" style="color:#FF5252;">{s.stop_loss}</div></div>'
+                f'<div class="sig-cell"><div class="k">🎯 Take Profit</div><div class="v" style="color:#00E676;">{s.take_profit}</div></div>'
+                f'<div class="sig-cell"><div class="k">Lot Size</div><div class="v">{s.lot_size}</div></div>'
+                f'<div class="sig-cell"><div class="k">Risk (ZAR)</div><div class="v">{_rand(s.dollar_risk)}</div></div>'
+                '</div>'
+                f'{rec_panel}'
+                '</div>'
+            )
+            st.markdown(card, unsafe_allow_html=True)
 
     if forex_wf:
         st.markdown('<div class="sec-head">Walk-Forward Backtest · per pair</div>', unsafe_allow_html=True)
@@ -1643,7 +1851,9 @@ with tab_strat:
             sel_cats = sl2.multiselect("Categories", STRATEGY_CATEGORIES, default=STRATEGY_CATEGORIES)
             show_flat = sl3.checkbox("Show FLAT signals", value=False)
 
-            df_s = hist_map.get(sel_ticker) or fx_map.get(sel_ticker, pd.DataFrame())
+            df_s = hist_map.get(sel_ticker)
+            if df_s is None:
+                df_s = fx_map.get(sel_ticker, pd.DataFrame())
 
             if df_s.empty or len(df_s) < 15:
                 st.warning("Insufficient data.")

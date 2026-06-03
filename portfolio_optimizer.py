@@ -55,7 +55,13 @@ class PortfolioRequest:
 
     def __post_init__(self) -> None:
         valid_ra = {"Conservative", "Moderate", "Aggressive"}
-        valid_st = {"Tech", "Value", "Dividend", "Emerging", "Balanced"}
+        valid_st = {
+            # US theme universes
+            "Tech", "Value", "Dividend", "Emerging", "Balanced",
+            # SA/JSE universes
+            "JSE Large Cap", "JSE Banks", "JSE Mining",
+            "JSE ETFs", "EasyEquities", "SA Balanced",
+        }
         if self.risk_appetite not in valid_ra:
             raise ValueError(f"risk_appetite must be one of {valid_ra}")
         if self.preferred_stock_type not in valid_st:
@@ -138,6 +144,7 @@ class PortfolioResult:
 # ══════════════════════════════════════════════════════════════════════════════
 
 THEME_UNIVERSES: Dict[str, List[str]] = {
+    # ── US theme universes ────────────────────────────────────────────────────
     "Tech": [
         "AAPL", "MSFT", "NVDA", "GOOGL", "META",
         "AMD",  "AVGO", "QCOM", "ORCL",  "CRM",
@@ -151,7 +158,7 @@ THEME_UNIVERSES: Dict[str, List[str]] = {
     "Dividend": [
         "KO",   "PEP", "JNJ",  "PG",   "MCD",
         "MMM",  "T",   "VZ",   "MO",   "PM",
-        "O",    "REALTY", "WPC", "D",   "SO",
+        "O",    "WPC", "D",    "SO",   "ABBV",
     ],
     "Emerging": [
         "EEM",  "VWO",  "INDA", "EWT",  "EWZ",
@@ -162,13 +169,41 @@ THEME_UNIVERSES: Dict[str, List[str]] = {
         "XOM",  "V",    "PG",   "BRK-B","GOOGL",
         "HD",   "UNH",  "CVX",  "ABBV", "TMO",
     ],
+    # ── JSE / South African universes ─────────────────────────────────────────
+    "JSE Large Cap": [
+        "NPN.JO", "SOL.JO", "SHP.JO", "FSR.JO", "CPI.JO",
+        "DSY.JO", "MTN.JO", "VOD.JO", "SLM.JO", "ABG.JO",
+    ],
+    "JSE Banks": [
+        "FSR.JO", "SBK.JO", "ABG.JO", "NED.JO", "INL.JO",
+        "CPI.JO", "DSY.JO", "SLM.JO",
+    ],
+    "JSE Mining": [
+        "AGL.JO", "BHP.JO", "GFI.JO", "ANG.JO", "IMP.JO",
+        "SOL.JO", "SSW.JO", "AMS.JO",
+    ],
+    "JSE ETFs": [
+        "STX40.JO", "STXSWIX.JO", "STXWDM.JO", "STXNDX.JO", "PTXSPY.JO",
+    ],
+    "EasyEquities": [
+        "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN",
+        "V",    "META", "TSLA", "JPM",   "JNJ",
+    ],
+    "SA Balanced": [
+        "NPN.JO", "FSR.JO", "SHP.JO", "STX40.JO", "STXWDM.JO", "SOL.JO",
+    ],
 }
 
-# Fixed-income ETFs to blend in per risk appetite
+# Fixed-income instruments per risk appetite.
+# SA bonds are listed first so the JSE synthetic bundle resolves them immediately;
+# US ETFs remain as fallback for live US-data bundles.
 FI_UNIVERSE: Dict[str, List[str]] = {
-    "Conservative": ["SHY", "IEF", "TLT", "AGG", "BND"],
-    "Moderate":     ["IEF", "AGG", "LQD"],
-    "Aggressive":   ["HYG", "LQD"],
+    "Conservative": ["R186.JO", "R2030.JO", "R213.JO", "R214.JO", "STXGOV.JO",
+                     "SHY", "IEF", "TLT", "AGG", "BND"],
+    "Moderate":     ["R2030.JO", "R213.JO", "STXGOV.JO",
+                     "IEF", "AGG", "LQD"],
+    "Aggressive":   ["STXGOV.JO", "NGOVSUS",
+                     "HYG", "LQD"],
 }
 
 

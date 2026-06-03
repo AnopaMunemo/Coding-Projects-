@@ -16,13 +16,13 @@
 CTrade trade;
 
 //--- Inputs --------------------------------------------------------
-input string  InpSignalFile      = "atlas_signals.csv"; // in MQL5/Files/
+input string  InpSignalFile      = "atlas_signals.csv"; // filename in Common\Files
 input int     InpMagicNumber     = 20260601;            // must match Python
 input int     InpMaxStaleMinutes = 15;     // ignore signals older than this
 input bool    InpRespectSession  = true;   // only enter within entry window
 input double  InpMaxLot          = 5.0;    // hard broker-side lot ceiling
 input double  InpMinLot          = 0.01;   // broker minimum (skip if below)
-input bool    InpDryRun          = true;   // true = log only, place NO orders
+input bool    InpDryRun          = false;  // false = live orders on demo/real
 input int     InpPollSeconds     = 30;     // how often to re-read the file
 
 //--- State ---------------------------------------------------------
@@ -53,13 +53,16 @@ void OnTimer()
 //+------------------------------------------------------------------+
 void ProcessSignalFile()
   {
-   if(!FileIsExist(InpSignalFile))
+   // FILE_COMMON lets MT5 read from the shared Common\Files folder —
+   // the same location Python writes atlas_signals.csv on Windows.
+   if(!FileIsExist(InpSignalFile, FILE_COMMON))
      {
-      Print("Signal file not found: ", InpSignalFile);
+      Print("Signal file not found in Common\\Files: ", InpSignalFile);
+      Print("Make sure you clicked 'Export to MT5' in the Atlas Capital app.");
       return;
      }
 
-   int h = FileOpen(InpSignalFile, FILE_READ|FILE_CSV|FILE_ANSI, ',');
+   int h = FileOpen(InpSignalFile, FILE_READ|FILE_CSV|FILE_ANSI|FILE_COMMON, ',');
    if(h == INVALID_HANDLE)
      {
       Print("Cannot open signal file, err=", GetLastError());

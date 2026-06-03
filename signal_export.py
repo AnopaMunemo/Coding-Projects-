@@ -45,7 +45,21 @@ _MT5_SYMBOL = {
     "XAU/USD": "XAUUSD", "XAG/USD": "XAGUSD",
 }
 
-DEFAULT_DIR  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mt5_signals")
+def _mt5_common_files() -> str:
+    """
+    Return the MT5 Common\\Files path where all terminals share files.
+    Falls back to a local mt5_signals folder if not on Windows / path missing.
+    """
+    if os.name == "nt":
+        base = os.environ.get("APPDATA", "")
+        candidate = os.path.join(base, "MetaQuotes", "Terminal", "Common", "Files")
+        if base:
+            os.makedirs(candidate, exist_ok=True)
+            return candidate
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "mt5_signals")
+
+
+DEFAULT_DIR  = _mt5_common_files()
 DEFAULT_FILE = "atlas_signals.json"
 
 

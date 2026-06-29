@@ -412,6 +412,36 @@ hr { border: none; border-top: 1px solid var(--border) !important; margin: 22px 
 .factor-bar-bg { flex:1; height:7px; background:rgba(255,255,255,0.07); border-radius:99px; overflow:hidden; }
 .factor-bar-fill { height:100%; border-radius:99px; }
 .factor-val { width:80px; text-align:right; font-size:0.82rem; font-family:'JetBrains Mono',monospace; color:var(--txt2); }
+
+/* ── Accessibility & polish (ui-ux-pro-max pre-delivery checklist) ── */
+/* Visible keyboard focus — required for WCAG AA / keyboard navigation */
+a:focus-visible, button:focus-visible,
+[data-testid="stButton"] button:focus-visible,
+[role="tab"]:focus-visible, .stTabs button:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+  border-radius: 8px;
+}
+/* Clear affordance: pointer cursor on every clickable control */
+[data-testid="stButton"] button, .stTabs button, [role="tab"],
+[data-baseweb="select"], label[data-baseweb="checkbox"], .stDownloadButton button {
+  cursor: pointer;
+}
+/* Smooth hover transitions (150–300ms), no harsh snaps */
+[data-testid="stButton"] button, .stTabs button, .kpi, .sig, .settings-card {
+  transition: all .2s ease;
+}
+/* Respect prefers-reduced-motion: stop the ambient orbs/beams/shine for users
+   who request reduced motion (vestibular-safety; also calmer on low-end devices) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 </style>
 """
 st.markdown(CSS, unsafe_allow_html=True)

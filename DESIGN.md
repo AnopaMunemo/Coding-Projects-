@@ -63,3 +63,25 @@ emphasis. Never use green/red decoratively — they carry trading meaning.
 - *"Style this as the gold desk"* → amber (`--amber`) accent, not cyan.
 - *"Make it cinematic"* → already defined here; don't re-describe orbs/glass/fonts.
 - When in doubt, match an existing component in `app.py` rather than inventing new CSS.
+
+## 7. Fintech design rules (from `ui-ux-pro-max-skill`)
+Atlas is an **institutional trading** product — design must read as *trustworthy*, not "AI toy".
+- **Trust palette carries the weight:** cyan (`--accent`), emerald (`--success`), amber (gold),
+  on the near-black base. These signal precision/markets.
+- **Anti-pattern — AI purple/pink as the dominant brand gradient.** The skill flags heavy
+  purple/magenta (`--violet`, `--magenta`) as a *banking trust killer*. Atlas keeps them as a
+  **sparing secondary** accent only (hero word, slider track) — never the primary surface or the
+  numbers. If pushing further toward an institutional look, dial magenta back first.
+- **Data legibility > decoration.** Green/red are reserved for trade state, never ornament.
+- **Match motion to seriousness:** subtle ambient drift, no bouncy/elastic easings, no neon flicker.
+
+## 8. Pre-delivery checklist (run before shipping any UI change)
+Implemented globally in `app.py`'s accessibility block; verify per change:
+- [ ] Text contrast ≥ **4.5:1** (body) — check `--txt2`/`--txt3` on dark cards.
+- [ ] **Visible keyboard focus** ring on every interactive element (`:focus-visible`, cyan).
+- [ ] **`cursor: pointer`** on all clickable controls.
+- [ ] Hover transitions **150–300ms**, ease — no harsh snaps.
+- [ ] **`prefers-reduced-motion`** honored (orbs/beams/shine pause). ✔ global rule in place.
+- [ ] **No emoji as functional icons** — use SVG/glyphs; emoji are fine only as decorative accents.
+- [ ] Responsive sanity at **375 / 768 / 1024 / 1440px** (Streamlit columns reflow).
+- [ ] Color is never the *only* signal — pair with text/icon (color-blind safety).

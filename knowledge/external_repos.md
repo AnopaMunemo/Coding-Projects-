@@ -86,7 +86,43 @@ future sessions don't replay the same fork.
 bugs we hit (HTML-leak, NaN confidence, DataFrame-ambiguous-bool) are recorded once and never
 relearned — that is itself a token saver.
 
-## 6–8. Reference-only (studied, not integrated)
+## 6. ui-ux-pro-max-skill (nextlevelbuilder) — design intelligence  *(better design)*
+**What:** A Claude Code / Cursor design skill: 161 industry reasoning rules, 67 UI styles, 161
+palettes, 57 font pairings, 99 UX guidelines, and a pre-delivery checklist. Teaches design
+*decision-making* (pattern + style + palette + anti-patterns per industry), not just templates.
+
+**Key takeaways for Atlas (fintech):**
+- **Anti-pattern: AI purple/pink gradients for banking** — they undercut trust. Atlas now treats
+  `--violet`/`--magenta` as a *sparing* secondary accent only (documented in DESIGN.md §7).
+- Accessibility checklist: contrast ≥4.5:1, visible focus, pointer cursors, hover 150–300ms,
+  honor `prefers-reduced-motion`, no emoji-as-icons, responsive breakpoints.
+
+**Action — ADOPTED into the live app.** Added a global accessibility/polish CSS block to `app.py`
+(`:focus-visible` rings, pointer cursors, smooth hover transitions, and a `prefers-reduced-motion`
+rule that pauses the ambient orbs/beams). Codified the fintech ruleset + checklist as DESIGN.md
+§7–§8 so every future UI change is disciplined and prompts stay short.
+
+## 7. ECC (affaan-m) — agent-harness operating system  *(improve Claude Code)*
+**What:** MIT "harness-native operator system" — 67 agents, 271+ skills, ~34 rules, 15+ hook types,
+multi-harness parity (Claude Code/Cursor/Codex/…), session memory persistence, continuous-learning
+into skills with confidence scoring, AgentShield security scanner, and token/context optimization.
+
+**Honest read:** powerful but **heavyweight** and built to manage *many* projects across *many*
+IDEs. Installing the full harness into this single repo would be over-engineering (and the sandbox
+can't clone it). The valuable part is its *principles*, several of which Atlas already embodies:
+| ECC principle | Atlas equivalent (already here) |
+|---|---|
+| Session memory persistence | `CLAUDE.md` + `knowledge/` loaded every session |
+| Continuous learning → reusable skills | `knowledge/lessons.md` (don't-relearn) + `decisions_log.md` |
+| Token/context optimization | `DESIGN.md` (reference, don't re-describe) + slim CLAUDE.md |
+| Security auditing pipeline | `/security-review` skill available in Claude Code |
+| Decision/rule trail | `knowledge/decisions_log.md` |
+
+**Action — PRINCIPLES ADOPTED, harness not installed.** Kept Atlas's lightweight context system;
+noted `/security-review` as the on-demand audit step before any live-trading change. If you ever
+run Atlas across multiple IDEs, revisit ECC as the umbrella harness.
+
+## 8–10. Reference-only (studied, not integrated)
 - **nautechsystems/nautilus_trader** — production Rust/Python algo-trading platform (event-driven,
   nanosecond backtester). *Lesson:* its strict event-driven core + typed messages validate Atlas's
   async-executor design. Too heavy to adopt; mine it for execution patterns if we ever rebuild the

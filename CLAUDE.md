@@ -68,4 +68,4 @@ streamlit run app.py
 - Infra: `trading_bot/infrastructure/{connection_monitor,retry_strategy,state_manager,latency_monitor,rate_limiter}.py`
 - Backtest: `trading_bot/backtest/{engine,overfitting_detection,profitability_validator}.py`
 - Merge + learning: `trading_bot/strategy/ensemble.py`, `trading_bot/learning/*`
-- Knowledge base: `knowledge/*.md` · Evaluation: `EVALUATION.md` · Run guide: `RUN_GUIDE.md`
+- Knowledge base: `knowledge/*.md` (incl. `tradingagents_reference.md` — external LLM-agent framework + integration path) · Evaluation: `EVALUATION.md` · Run guide: `RUN_GUIDE.md`

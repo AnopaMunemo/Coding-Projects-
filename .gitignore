@@ -1,0 +1,34 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Generated MT5 signal exports
+mt5_signals/
+
+# trading_bot runtime artifacts
+logs/
+audit/
+state/
+bot_state.json
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# graphify codebase-graph artifacts (run locally for AI codebase Q&A)
+graph.html
+graph.json

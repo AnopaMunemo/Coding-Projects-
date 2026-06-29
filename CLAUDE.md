@@ -27,6 +27,15 @@ chosen broker → state/audit written back → Desk monitors.**
 `BaseStrategy.calculate_signals()` contract, so the bot can run the whole library as one
 weighted signal. Select it with `--strategy ensemble` (default `swing`).
 
+## Design & token-efficiency
+- **`DESIGN.md`** (repo root) is the single source of truth for the 2026-cinematic UI (color/
+  font/component tokens). Reference it in design prompts instead of re-describing the look.
+- **`knowledge/lessons.md`** records bugs already hit — check it before debugging.
+- **`knowledge/external_repos.md`** distils the studied repos/papers (TradingAgents, GOLD_ORB,
+  graphify, awesome-claude-design, nautilus_trader, …) and what was adopted from each.
+- Tip: `graphify` (`uv tool install graphifyy` → `graphify install`) builds a codebase graph so
+  AI sessions answer architecture questions without re-reading files (run locally; sandbox can't).
+
 ## Brokers (all three, switchable)
 `--broker {paper, mt5, investec}` (or `BotConfig.broker_type`). paper = offline sim;
 mt5 = MetaTrader demo via `Common\Files` bridge (`AtlasForexEA.mq5`); investec = live JSE,

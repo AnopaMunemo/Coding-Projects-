@@ -325,6 +325,75 @@ class RangeBreakout:
                       {"high": rh, "low": rl, "compressed": compressed})
 
 
+class GoldORB:
+    """Opening-Range Breakout — distilled from the GOLD_ORB EA (XAUUSD H1).
+
+    Establishes the session's opening range from the first `open_bars`, waits
+    for `confirm_bars` of consolidation inside that range, then trades the
+    break (long above the range high, short below the low). Strength scales
+    with breakout magnitude vs ATR and whether the range was confirmed.
+
+    Session-aware when the frame is intraday (groups by calendar day); degrades
+    gracefully to a rolling opening range on daily bars or a non-datetime index.
+    Pure signal only — TP/SL/trailing/daily-trade-cap live in the engine's
+    RiskManager (see knowledge/external_repos.md for the parameter mapping).
+    """
+    name = "Gold ORB"
+    category = "Breakout"
+
+    def __init__(self, open_bars: int = 1, confirm_bars: int = 3):
+        self.open_bars = max(1, open_bars)
+        self.confirm_bars = max(1, confirm_bars)
+
+    def get_signal(self, df: pd.DataFrame) -> Signal:
+        need = self.open_bars + self.confirm_bars + 1
+        if len(df) < need:
+            return Signal(self.name, self.category, "FLAT", 0.0, "Insufficient data")
+        price = float(df["Close"].iloc[-1])
+        atr_now = float(_atr(df, 14).iloc[-1])
+
+        # Pick the opening-range window: the live session if intraday, else rolling.
+        session, label = df, "rolling"
+        try:
+            same_day = df.index.normalize() == df.index[-1].normalize()
+            if 1 < int(same_day.sum()) < len(df):
+                session, label = df[same_day], "session"
+        except Exception:
+            pass
+        if len(session) < self.open_bars + self.confirm_bars + 1:
+            session, label = df.tail(need), "rolling"
+
+        ob = self.open_bars
+        or_high = float(session["High"].iloc[:ob].max())
+        or_low = float(session["Low"].iloc[:ob].min())
+        rng = max(or_high - or_low, 1e-9)
+        denom = atr_now if atr_now and math.isfinite(atr_now) else rng
+
+        inside = session.iloc[ob:ob + self.confirm_bars]
+        confirmed = bool(
+            len(inside) >= self.confirm_bars
+            and (inside["High"] <= or_high * 1.0005).all()
+            and (inside["Low"] >= or_low * 0.9995).all()
+        )
+        conf_mult = 1.0 if confirmed else 0.6
+
+        if price > or_high:
+            mag = min((price - or_high) / denom, 1.0)
+            s = min((0.6 + 0.3 * mag) * conf_mult, 1.0)
+            return Signal(self.name, self.category, "LONG", round(s, 3),
+                          f"ORB break ↑ {or_high:.4f} ({label}, confirmed={confirmed})",
+                          {"or_high": or_high, "or_low": or_low, "confirmed": confirmed})
+        if price < or_low:
+            mag = min((or_low - price) / denom, 1.0)
+            s = min((0.6 + 0.3 * mag) * conf_mult, 1.0)
+            return Signal(self.name, self.category, "SHORT", round(s, 3),
+                          f"ORB break ↓ {or_low:.4f} ({label}, confirmed={confirmed})",
+                          {"or_high": or_high, "or_low": or_low, "confirmed": confirmed})
+        return Signal(self.name, self.category, "FLAT", 0.25,
+                      f"Inside opening range [{or_low:.4f}–{or_high:.4f}] ({label})",
+                      {"or_high": or_high, "or_low": or_low, "confirmed": confirmed})
+
+
 class SeasonalFilter:
     name = "Seasonal Filter"
     category = "Seasonal"
@@ -624,6 +693,7 @@ ALL_STRATEGIES = [
     TurtleBreakout(20, 10),
     TurtleBreakout(55, 20),
     RangeBreakout(10),
+    GoldORB(open_bars=1, confirm_bars=3),
     # Seasonal
     SeasonalFilter(),
     # SMC

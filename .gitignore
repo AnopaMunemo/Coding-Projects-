@@ -28,3 +28,7 @@ bot_state.json
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
+
+# graphify codebase-graph artifacts (run locally for AI codebase Q&A)
+graph.html
+graph.json

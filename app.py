@@ -92,12 +92,12 @@ CSS = """
   --emerald:  #00E676;
   --lime:     #B6FF3C;
   --amber:    #FF9F45;
-  --violet:   #8B7CFF;
-  --magenta:  #E879F9;
+  --violet:   #5E7BE8;
+  --magenta:  #C0566B;
   --success:  #00E676;
   --warn:     #FFB020;
   --danger:   #FF5C6E;
-  --purple:   #8B7CFF;
+  --purple:   #5E7BE8;
   --txt:      #F4F7FF;
   --txt2:     #97A3BE;
   --txt3:     #56627E;
@@ -205,7 +205,7 @@ html, body, .stApp {
 .k-success { color: var(--emerald); text-shadow: 0 0 24px rgba(0,230,118,0.30); }
 .k-warn    { color: var(--warn); }
 .k-danger  { color: var(--danger); }
-.k-purple  { color: var(--violet);  text-shadow: 0 0 24px rgba(139,124,255,0.32); }
+.k-purple  { color: var(--violet);  text-shadow: 0 0 24px rgba(94,123,232,0.32); }
 .k-white   { color: var(--txt); }
 
 /* ── Section headers ── */
@@ -327,7 +327,7 @@ button[kind="secondary"] {
 .strat.s-flat::before  { background: var(--txt3); }
 .str-bar { height: 5px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; margin-top: 7px; }
 .str-long  { height: 100%; background: linear-gradient(90deg, var(--emerald), var(--lime)); border-radius: 99px; }
-.str-short { height: 100%; background: linear-gradient(90deg, var(--danger), var(--magenta)); border-radius: 99px; }
+.str-short { height: 100%; background: linear-gradient(90deg, var(--danger), #A33B4A); border-radius: 99px; }
 .str-flat  { height: 100%; background: var(--txt3); border-radius: 99px; }
 
 /* ── Divider ── */

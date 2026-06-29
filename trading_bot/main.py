@@ -84,11 +84,20 @@ class TradingBot:
         return PaperBroker(self.config.starting_balance, self.logger)
 
     def _create_strategy(self):
-        if getattr(self.config, "strategy_type", "swing") == "ensemble":
+        kind = getattr(self.config, "strategy_type", "swing")
+        if kind == "ensemble":
             from trading_bot.strategy.ensemble import EnsembleStrategy
             from trading_bot.learning.weight_store import WeightStore
             self.logger.info("Using EnsembleStrategy (full Desk strategy library)")
             return EnsembleStrategy(weight_store=WeightStore())
+        if kind == "llm":
+            from trading_bot.strategy.llm_agents import LLMAgentStrategy, LLMClient
+            if not LLMClient.api_key():
+                self.logger.warning(
+                    "strategy=llm but no ATLAS_LLM_API_KEY/OPENAI_API_KEY set — "
+                    "LLM calls will fall back to SwingTrader.")
+            self.logger.info("Using LLMAgentStrategy (LLM analyst council, cost-capped)")
+            return LLMAgentStrategy()
         return SwingTrader()
 
     async def _on_connection_lost(self, reason: str) -> None:
@@ -208,8 +217,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Atlas Production Swing Trading Bot")
     parser.add_argument("--mode", choices=["live", "paper", "backtest", "score"], default="paper")
     parser.add_argument("--broker", choices=["paper", "mt5", "investec"], default="paper")
-    parser.add_argument("--strategy", choices=["swing", "ensemble"], default="swing",
-                        help="swing = built-in SMA/RSI/MACD; ensemble = full Desk strategy library")
+    parser.add_argument("--strategy", choices=["swing", "ensemble", "llm"], default="swing",
+                        help="swing = built-in SMA/RSI/MACD; ensemble = full Desk strategy "
+                             "library; llm = LLM analyst council (needs ATLAS_LLM_API_KEY)")
     parser.add_argument("--symbols", nargs="+", default=list(DEFAULT_BOT.symbols))
     parser.add_argument("--start", default="2022-01-01")
     parser.add_argument("--end", default="2024-12-31")

@@ -23,9 +23,10 @@ concept*. Calm dark base, light used sparingly as signal.
 | `--border2` | `rgba(255,255,255,0.14)` | Emphasised border |
 | `--accent` | `#00D4FF` | Primary accent (cyan) — links, focus, key numbers |
 | `--accent2` | `#38BDF8` | Accent gradient partner |
-| `--violet` / `--purple` | `#8B7CFF` | Secondary gradient (headings, sliders) |
+| `--violet` / `--purple` | `#5E7BE8` | Secondary gradient (azure-indigo, institutional — headings, sliders) |
 | `--emerald` / `--success` | `#00E676` | LONG / profit / pass |
 | `--danger` | `#FF5C6E` | SHORT / loss / fail |
+| `--magenta` | `#C0566B` | Muted rose — sparing only (toned down from AI-pink for fintech trust) |
 | `--amber` | `#FF9F45` | **Gold / XAUUSD desk**, warnings |
 | `--warn` | `#FFB020` | Caution |
 | `--txt` / `--txt2` / `--txt3` | `#F4F7FF` / `#97A3BE` / `#56627E` | Primary / secondary / tertiary text |

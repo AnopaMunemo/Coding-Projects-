@@ -23,6 +23,7 @@ is the right choice for co-located HFT (< 1 ms round-trips).
 from __future__ import annotations
 
 import logging
+import os
 import time
 import warnings
 from dataclasses import dataclass, field
@@ -53,11 +54,31 @@ logger = logging.getLogger("data_feed")
 # Configuration dataclasses
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _env_int(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.environ.get(name, default)))
+    except Exception:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return max(0.0, float(os.environ.get(name, default)))
+    except Exception:
+        return default
+
+
 @dataclass
 class RetryConfig:
-    """Exponential-backoff parameters for all network calls."""
-    max_attempts: int   = 3
-    base_backoff: float = 1.5   # seconds; doubles on each retry
+    """Exponential-backoff parameters for all network calls.
+
+    Overridable via env so offline / sandboxed runs don't stall on dead network:
+      ATLAS_MAX_RETRIES   (default 3)  — attempts per call
+      ATLAS_RETRY_BACKOFF (default 1.5s) — base backoff, doubles each retry
+    e.g. `ATLAS_MAX_RETRIES=1 ATLAS_RETRY_BACKOFF=0` for an instant synthetic fallback.
+    """
+    max_attempts: int   = field(default_factory=lambda: _env_int("ATLAS_MAX_RETRIES", 3))
+    base_backoff: float = field(default_factory=lambda: _env_float("ATLAS_RETRY_BACKOFF", 1.5))
 
 
 @dataclass

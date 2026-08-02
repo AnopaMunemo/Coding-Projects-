@@ -1,0 +1,237 @@
+# ---------------------------------------------------------------------------
+# Automation agency control plane — single-VPS reference stack.
+#
+# Runs every client tenant on one hardened host. Tenancy is enforced inside
+# PostgreSQL with row-level security (see ../db/001_core.sql), not by running
+# a separate stack per client — that is what keeps gross margin above 85%.
+#
+#   docker compose --env-file .env up -d
+#
+# Host sizing: start on 4 vCPU / 16 GB / 200 GB NVMe. That comfortably carries
+# ~15 tenants at the message volumes in the README's capacity model.
+# ---------------------------------------------------------------------------
+
+x-n8n-common: &n8n-common
+  image: n8nio/n8n:1.75.2
+  restart: unless-stopped
+  environment:
+    # --- execution model -----------------------------------------------
+    EXECUTIONS_MODE: queue
+    QUEUE_BULL_REDIS_HOST: redis
+    QUEUE_HEALTH_CHECK_ACTIVE: "true"
+    N8N_RUNNERS_ENABLED: "true"
+
+    # --- persistence ---------------------------------------------------
+    DB_TYPE: postgresdb
+    DB_POSTGRESDB_HOST: postgres
+    DB_POSTGRESDB_PORT: 5432
+    DB_POSTGRESDB_DATABASE: ${N8N_DB_NAME}
+    DB_POSTGRESDB_USER: ${N8N_DB_USER}
+    DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+    DB_POSTGRESDB_SCHEMA: n8n
+
+    # --- security ------------------------------------------------------
+    N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+    N8N_BLOCK_ENV_ACCESS_IN_NODE: "true"
+    N8N_SECURE_COOKIE: "true"
+    N8N_PROTOCOL: https
+    N8N_HOST: ${N8N_HOST}
+    WEBHOOK_URL: https://${N8N_HOST}/
+    N8N_PROXY_HOPS: 1
+
+    # --- retention (POPIA s14: do not keep records longer than needed) --
+    EXECUTIONS_DATA_PRUNE: "true"
+    EXECUTIONS_DATA_MAX_AGE: 336          # hours == 14 days
+    EXECUTIONS_DATA_SAVE_ON_SUCCESS: none
+    EXECUTIONS_DATA_SAVE_ON_ERROR: all
+
+    GENERIC_TIMEZONE: Africa/Johannesburg
+    TZ: Africa/Johannesburg
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  # -------------------------------------------------------------------------
+  # Edge. Caddy terminates TLS automatically and is the only published port.
+  # -------------------------------------------------------------------------
+  caddy:
+    image: caddy:2.9-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [n8n, gateway, portal]
+
+  # -------------------------------------------------------------------------
+  # System of record. PostgreSQL 18 — the schema leans on uuidv7(), virtual
+  # generated columns and temporal constraints, so 18 is a hard floor.
+  # -------------------------------------------------------------------------
+  postgres:
+    image: postgres:18-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PG_DB}
+      POSTGRES_USER: ${PG_SUPERUSER}
+      POSTGRES_PASSWORD: ${PG_SUPERUSER_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--data-checksums --locale-provider=icu --icu-locale=en-ZA"
+      TZ: Africa/Johannesburg
+    command:
+      - postgres
+      # PG18 asynchronous I/O. `worker` is the portable default; switch to
+      # `io_uring` on a kernel >= 5.19 host for a further step up on NVMe.
+      - -c
+      - io_method=worker
+      - -c
+      - io_workers=3
+      - -c
+      - shared_buffers=4GB
+      - -c
+      - effective_cache_size=12GB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=1GB
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - track_io_timing=on
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - log_min_duration_statement=500
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ../db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_SUPERUSER} -d ${PG_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis_data:/data
+
+  # -------------------------------------------------------------------------
+  # n8n in queue mode: one UI/API process, N stateless workers.
+  # -------------------------------------------------------------------------
+  n8n:
+    <<: *n8n-common
+    container_name: n8n_main
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ../workflows:/workflows:ro
+
+  n8n-worker:
+    <<: *n8n-common
+    command: worker --concurrency=10
+    deploy:
+      replicas: 2
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  # -------------------------------------------------------------------------
+  # Custom Python. Everything n8n is bad at: lead scoring, WhatsApp webhook
+  # signature verification, portal ingest, PDF/report generation, prospecting.
+  # -------------------------------------------------------------------------
+  gateway:
+    build:
+      context: ../tools
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${PG_DB}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY}
+      META_APP_SECRET: ${META_APP_SECRET}
+      TZ: Africa/Johannesburg
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # Authenticated client portal (Next.js + Skiper-ui + Motion.dev + BKLit UI).
+  # Reads through a scoped, read-only Postgres role. Never writes.
+  # -------------------------------------------------------------------------
+  portal:
+    build:
+      context: ../portal
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${PORTAL_DB_USER}:${PORTAL_DB_PASSWORD}@postgres:5432/${PG_DB}
+      AUTH_SECRET: ${PORTAL_AUTH_SECRET}
+      NEXT_PUBLIC_SITE_URL: https://${PORTAL_HOST}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # Internal BI only — never exposed to clients. Client-facing numbers come
+  # from the portal so that the presentation layer stays under your control.
+  # -------------------------------------------------------------------------
+  metabase:
+    image: metabase/metabase:v0.52.8
+    restart: unless-stopped
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: ${METABASE_DB_USER}
+      MB_DB_PASS: ${METABASE_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # Backups. Nightly base backup + continuous WAL to off-site object storage.
+  # Restore drill is a calendar item, not an aspiration — see README §4.4.
+  # -------------------------------------------------------------------------
+  pgbackrest:
+    image: pgbackrest/pgbackrest:release-2.54.0
+    restart: unless-stopped
+    environment:
+      PGBACKREST_REPO1_TYPE: s3
+      PGBACKREST_REPO1_S3_BUCKET: ${BACKUP_BUCKET}
+      PGBACKREST_REPO1_S3_ENDPOINT: ${BACKUP_ENDPOINT}
+      PGBACKREST_REPO1_S3_REGION: ${BACKUP_REGION}
+      PGBACKREST_REPO1_S3_KEY: ${BACKUP_KEY}
+      PGBACKREST_REPO1_S3_KEY_SECRET: ${BACKUP_SECRET}
+      PGBACKREST_REPO1_CIPHER_TYPE: aes-256-cbc
+      PGBACKREST_REPO1_CIPHER_PASS: ${BACKUP_CIPHER_PASS}
+      PGBACKREST_REPO1_RETENTION_FULL: "4"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -------------------------------------------------------------------------
+  # Uptime monitoring. A client noticing an outage before you do is the single
+  # fastest way to lose a R28 000/month retainer.
+  # -------------------------------------------------------------------------
+  uptime:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    volumes:
+      - uptime_data:/app/data
+
+volumes:
+  pg_data:
+  redis_data:
+  n8n_data:
+  caddy_data:
+  caddy_config:
+  uptime_data:

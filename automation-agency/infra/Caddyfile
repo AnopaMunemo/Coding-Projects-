@@ -1,0 +1,59 @@
+# Edge routing. Caddy handles ACME certificates automatically; nothing else in
+# the stack publishes a port.
+
+{
+	email ops@youragency.co.za
+}
+
+# --- n8n: UI is admin-only, /webhook/* must stay public for Meta et al. ------
+{$N8N_HOST} {
+	encode zstd gzip
+
+	# The editor. Lock it to your own IPs — an exposed n8n UI is a full
+	# credential store behind one password.
+	@editor not path /webhook/* /webhook-test/* /rest/oauth2-credential/callback
+	handle @editor {
+		@blocked not remote_ip 197.0.0.0/8 private_ranges
+		respond @blocked "forbidden" 403
+		reverse_proxy n8n:5678
+	}
+
+	handle {
+		reverse_proxy n8n:5678
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
+# --- Gateway: WhatsApp webhooks + internal API ------------------------------
+hooks.youragency.co.za {
+	encode zstd gzip
+	reverse_proxy gateway:8000
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
+
+# --- Client portal ----------------------------------------------------------
+{$PORTAL_HOST} {
+	encode zstd gzip
+	reverse_proxy portal:3000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# The portal renders client data. Nothing loads from a third party.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+	}
+}
+
+# --- Internal BI: never exposed publicly ------------------------------------
+bi.youragency.co.za {
+	@blocked not remote_ip 197.0.0.0/8 private_ranges
+	respond @blocked "forbidden" 403
+	reverse_proxy metabase:3000
+}

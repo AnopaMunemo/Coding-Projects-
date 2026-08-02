@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Honour the OS setting everywhere. Half of SA business owners open this on a
+ * phone in a car park, and a white flash at 19:00 is a bad first impression.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:root {
+  color-scheme: light dark;
+
+  /*
+   * tailwind.config.ts maps font-sans to this variable. Define it here or the
+   * whole portal silently falls back to the browser default serif — which is
+   * precisely the "nobody looked at this" signal the design is meant to avoid.
+   *
+   * This is the system stack. Replace it with a licensed face before launch;
+   * see portal/README.md.
+   */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+
+  /* -----------------------------------------------------------------------
+   * Chart tokens.
+   *
+   * The BKLit registry components read these but ship none, so this file is
+   * the palette — define it once and every chart in the portal agrees.
+   *
+   * Deliberately teal-led rather than the default blue/purple: it is the one
+   * palette choice a prospect registers as "not a template", and amber as the
+   * second series reads as loss without needing a legend.
+   * --------------------------------------------------------------------- */
+  --border: #e5e5e5;
+
+  --chart-background: transparent;
+  --chart-foreground: #171717;
+  --chart-foreground-muted: #737373;
+  --chart-label: #525252;
+  --chart-grid: #ececec;
+  --chart-crosshair: #a3a3a3;
+  --chart-brush-border: #d4d4d4;
+
+  --chart-line-primary: #0f766e;
+  --chart-line-secondary: #b45309;
+
+  --chart-1: #0f766e;
+  --chart-2: #b45309;
+  --chart-3: #1d4ed8;
+  --chart-4: #9f1239;
+  --chart-5: #4d7c0f;
+
+  --chart-indicator-color: #0f766e;
+  --chart-indicator-secondary-color: #b45309;
+
+  /* Sequential ramp for the utilisation heatmap. */
+  --chart-scale-01: #edf5f4;
+  --chart-scale-02: #c6e2df;
+  --chart-scale-03: #8ec7c1;
+  --chart-scale-04: #4b9d95;
+  --chart-scale-05: #0f766e;
+  --chart-scale-pattern-color: #d4d4d4;
+
+  --chart-segment-background: #f5f5f5;
+  --chart-segment-line: #e5e5e5;
+
+  --chart-marker-background: #ffffff;
+  --chart-marker-foreground: #171717;
+  --chart-marker-border: #e5e5e5;
+  --chart-marker-badge-background: #0f766e;
+  --chart-marker-badge-foreground: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --border: #262626;
+
+    --chart-foreground: #fafafa;
+    --chart-foreground-muted: #a3a3a3;
+    --chart-label: #a3a3a3;
+    --chart-grid: #232323;
+    --chart-crosshair: #525252;
+    --chart-brush-border: #404040;
+
+    /* Lifted for contrast against near-black; the light values go muddy. */
+    --chart-line-primary: #2dd4bf;
+    --chart-line-secondary: #fbbf24;
+
+    --chart-1: #2dd4bf;
+    --chart-2: #fbbf24;
+    --chart-3: #60a5fa;
+    --chart-4: #fb7185;
+    --chart-5: #a3e635;
+
+    --chart-indicator-color: #2dd4bf;
+    --chart-indicator-secondary-color: #fbbf24;
+
+    --chart-scale-01: #14201f;
+    --chart-scale-02: #17423d;
+    --chart-scale-03: #10645a;
+    --chart-scale-04: #12897c;
+    --chart-scale-05: #2dd4bf;
+    --chart-scale-pattern-color: #333333;
+
+    --chart-segment-background: #171717;
+    --chart-segment-line: #262626;
+
+    --chart-marker-background: #171717;
+    --chart-marker-foreground: #fafafa;
+    --chart-marker-border: #333333;
+    --chart-marker-badge-background: #2dd4bf;
+    --chart-marker-badge-foreground: #0a0a0a;
+  }
+}

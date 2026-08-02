@@ -1101,8 +1101,11 @@ def print_report(prices: np.ndarray, sig: Dict, trade: Dict,
         fc = arima["forecast"]
         lo = arima["ci_lower"]
         hi = arima["ci_upper"]
-        print(f"\n  ARIMA PRICE TARGETS  ({arima['model']}"
-              f"{f'  AIC={arima[\"aic\"]}' if arima.get('aic') else ''}):")
+        # Built outside the f-string: a backslash inside an f-string
+        # expression is a SyntaxError before Python 3.12, and CI builds on
+        # 3.9, 3.10 and 3.11.
+        aic_note = f"  AIC={arima['aic']}" if arima.get("aic") else ""
+        print(f"\n  ARIMA PRICE TARGETS  ({arima['model']}{aic_note}):")
         print(f"  1-day:   R{fc[0]:>10,.2f}  "
               f"[ R{lo[0]:,.2f} – R{hi[0]:,.2f} ]")
         if len(fc) >= 5:

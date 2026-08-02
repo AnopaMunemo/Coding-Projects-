@@ -1,0 +1,21 @@
+# Secrets — never commit
+infra/.env
+*.pem
+*.key
+
+# Node
+node_modules/
+.next/
+out/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local data
+*.csv
+!sales/*.csv
+*.dump
+*.sql.gz

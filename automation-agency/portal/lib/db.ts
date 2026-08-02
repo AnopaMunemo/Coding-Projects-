@@ -1,4 +1,19 @@
-import { Pool } from "pg";
+import { Pool, types } from "pg";
+
+/**
+ * node-postgres returns bigint (int8) and numeric as STRINGS by default,
+ * because both can exceed IEEE-754 range. That default is correct in general
+ * and wrong for us in a way that fails silently: `count(*)` arrives as "158",
+ * charts receive strings instead of numbers, and render an empty plot with
+ * perfectly good axes. Nothing throws.
+ *
+ * Everything the portal reads has already been aggregated and divided down to
+ * rands in the analytics views, so the values are comfortably inside safe
+ * integer range and coercing here is sound. If a read model is ever added that
+ * returns raw cents for a very large aggregate, revisit this.
+ */
+types.setTypeParser(types.builtins.INT8, (v) => Number(v));
+types.setTypeParser(types.builtins.NUMERIC, (v) => Number(v));
 
 /**
  * Read-only access to the analytics read models.

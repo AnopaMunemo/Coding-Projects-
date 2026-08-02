@@ -164,6 +164,118 @@ GROUP BY a.tenant_id, a.course_id, a.contact_id,
          tt.name, tt.course_sessions, tt.price_cents;
 
 -- ---------------------------------------------------------------------------
+-- Chart-shaped read models. Each one exists because a specific chart in the
+-- portal needs it; keeping the shaping in SQL means the portal never does
+-- arithmetic a client could dispute.
+-- ---------------------------------------------------------------------------
+
+-- Speed-to-lead as a distribution, not an average. Rendered as a bar chart so
+-- the client sees the shape: a tall first bar is the product working, and the
+-- long tail is a management conversation about a specific agent.
+CREATE VIEW analytics.v_response_buckets WITH (security_invoker = true) AS
+WITH bucketed AS (
+  SELECT tenant_id,
+         CASE
+           WHEN first_response_at IS NULL      THEN 'No reply'
+           WHEN response_seconds < 60          THEN 'Under 1 min'
+           WHEN response_seconds < 300         THEN '1-5 min'
+           WHEN response_seconds < 3600        THEN '5-60 min'
+           WHEN response_seconds < 86400       THEN '1-24 hours'
+           ELSE 'Over a day'
+         END AS bucket
+  FROM realestate.lead
+  WHERE received_at >= now() - interval '30 days'
+)
+SELECT tenant_id, bucket, count(*) AS leads,
+       CASE bucket
+         WHEN 'Under 1 min' THEN 1 WHEN '1-5 min' THEN 2 WHEN '5-60 min' THEN 3
+         WHEN '1-24 hours'  THEN 4 WHEN 'Over a day' THEN 5 ELSE 6
+       END AS sort_order
+FROM bucketed
+GROUP BY tenant_id, bucket;
+
+-- Cumulative recovered value by month against the retainer line. This is the
+-- chart that renews the contract, so it is a first-class read model.
+CREATE VIEW analytics.v_recovered_cumulative WITH (security_invoker = true) AS
+SELECT r.tenant_id,
+       date_trunc('month', r.occurred_on)::date AS month,
+       round(sum(sum(r.amount_cents)) OVER (
+         PARTITION BY r.tenant_id ORDER BY date_trunc('month', r.occurred_on)
+       ) / 100.0, 2) AS cumulative_rands,
+       round(sum(r.amount_cents) / 100.0, 2) AS month_rands
+FROM core.revenue_event r
+GROUP BY r.tenant_id, date_trunc('month', r.occurred_on);
+
+-- Chair utilisation as a calendar: one row per trading day over the last
+-- quarter. Rendered as a weekday x week heatmap, which is the shape the BKLit
+-- heatmap is built for and the shape an owner reads instantly — the pale
+-- columns are the weeks the diary did not fill.
+CREATE VIEW analytics.v_utilisation_calendar WITH (security_invoker = true) AS
+SELECT
+  a.tenant_id,
+  lower(a.during)::date                                   AS day,
+  EXTRACT(ISODOW FROM lower(a.during))::int               AS weekday,   -- 1 = Monday
+  count(*) FILTER (WHERE a.status = 'completed')          AS booked,
+  count(*) FILTER (WHERE a.is_leakage)                    AS lost,
+  round(sum(a.value_cents) FILTER (WHERE a.status = 'completed') / 100.0, 2)
+                                                          AS earned_rands
+FROM medspa.appointment a
+WHERE lower(a.during) >= now() - interval '84 days'
+GROUP BY 1,2,3;
+
+-- Hour-of-day utilisation, kept separate. Percentiles and hour buckets do not
+-- belong in the same view as the calendar: different grain, different chart.
+CREATE VIEW analytics.v_utilisation_by_hour WITH (security_invoker = true) AS
+SELECT
+  a.tenant_id,
+  EXTRACT(ISODOW FROM lower(a.during))::int               AS weekday,
+  EXTRACT(HOUR  FROM lower(a.during))::int                AS hour,
+  count(*) FILTER (WHERE a.status = 'completed')          AS booked,
+  count(*) FILTER (WHERE a.is_leakage)                    AS lost
+FROM medspa.appointment a
+WHERE lower(a.during) >= now() - interval '84 days'
+GROUP BY 1,2,3;
+
+-- Recall funnel collapsed to stages, for a funnel chart. Each stage counts
+-- every recall that reached it or beyond, so the funnel only ever narrows.
+CREATE VIEW analytics.v_recall_stages WITH (security_invoker = true) AS
+WITH r AS (
+  SELECT rc.tenant_id, rc.status, t.price_cents
+  FROM   medspa.recall rc
+  JOIN   medspa.treatment_type t
+         ON t.id = rc.treatment_type_id AND t.tenant_id = rc.tenant_id
+)
+SELECT tenant_id, 1 AS step, 'Due'::text AS stage, count(*) AS recalls,
+       round(sum(price_cents) / 100.0, 2) AS rands
+FROM r GROUP BY tenant_id
+UNION ALL
+SELECT tenant_id, 2, 'Contacted', count(*), round(sum(price_cents) / 100.0, 2)
+FROM r WHERE status IN ('sent','engaged','booked','declined') GROUP BY tenant_id
+UNION ALL
+SELECT tenant_id, 3, 'Engaged', count(*), round(sum(price_cents) / 100.0, 2)
+FROM r WHERE status IN ('engaged','booked') GROUP BY tenant_id
+UNION ALL
+SELECT tenant_id, 4, 'Rebooked', count(*), round(sum(price_cents) / 100.0, 2)
+FROM r WHERE status = 'booked' GROUP BY tenant_id;
+
+-- Med spa headline, rolling 30 days, mirroring the real-estate one.
+CREATE VIEW analytics.v_headline_medspa WITH (security_invoker = true) AS
+SELECT
+  tenant_id,
+  count(*)                                              AS appointments,
+  count(*) FILTER (WHERE status = 'completed')          AS completed,
+  count(*) FILTER (WHERE is_leakage)                    AS lost,
+  round(sum(value_cents) FILTER (WHERE status = 'completed') / 100.0, 2)
+                                                        AS earned_rands,
+  round(sum(value_cents) FILTER (WHERE is_leakage) / 100.0, 2)
+                                                        AS leaked_rands,
+  round(100.0 * count(*) FILTER (WHERE is_leakage)
+        / NULLIF(count(*), 0), 1)                       AS leakage_pct
+FROM medspa.appointment
+WHERE lower(during) >= now() - interval '30 days'
+GROUP BY tenant_id;
+
+-- ---------------------------------------------------------------------------
 -- The portal needs the client's own trading name and retainer to render "a
 -- 5.1x return against your retainer". It must NOT be able to read setup fees,
 -- operator agreement dates, or the Information Officer's contact details —

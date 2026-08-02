@@ -20,19 +20,42 @@ Skiper-ui and BKLit UI are shadcn-style registries: you run a CLI, the
 component source lands in your repo, and you own it from that moment. That
 ownership is the point — you are meant to edit them.
 
+Neither Skiper-ui nor BKLit UI is an npm package — `npm i skiper-ui` 404s.
+Both are **shadcn registries**, installed through the shadcn CLI:
+
 ```bash
 # Motion is a normal dependency and is already in package.json
 npm install
 
-# Skiper-ui — signature animated components
-npx skiper-ui@latest add <component>
+# One-time: register the namespaces in components.json
+npx shadcn@latest init
 
-# BKLit UI — charts and data visuals
-npx bklit-ui@latest add <chart>
+# BKLit UI — the charts this portal uses
+npx shadcn@latest add @bklit/area-chart @bklit/bar-chart \
+                      @bklit/funnel-chart @bklit/heatmap-chart
+
+# Skiper-ui — signature animated components
+npx shadcn@latest add @skiper-ui/skiper40
 ```
 
-Check each registry's current CLI invocation before running it; these projects
-move quickly.
+`components.json` must declare both registries:
+
+```json
+"registries": {
+  "@bklit": "https://bklit.com/r/{name}.json",
+  "@skiper-ui": "https://skiper-ui.com/r/{name}.json"
+}
+```
+
+Two things to know before you run this:
+
+- **The CLI prompts interactively.** In CI or a container it will hang. The
+  registry endpoints are plain JSON, so an unattended install can fetch the
+  item, resolve `registryDependencies` recursively, and write the files itself.
+- **BKLit ships no CSS variables.** Its components read `--chart-1`…`--chart-5`,
+  `--chart-scale-01`…`05`, `--chart-line-primary` and friends. Define them or
+  every chart renders black-on-black. Ours live in `app/globals.css`, light and
+  dark — that file is the palette.
 
 ---
 

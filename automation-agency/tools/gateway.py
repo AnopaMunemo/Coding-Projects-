@@ -30,6 +30,11 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
+# psycopg 3 will NOT implicitly adapt a Python dict to jsonb -- it raises
+# "cannot adapt type 'dict'". Every jsonb parameter must be wrapped in Jsonb().
+# Miss one and the whole transaction rolls back, silently losing the rows that
+# had already succeeded inside it.
+from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field
 
@@ -171,19 +176,22 @@ async def receive_whatsapp(
 
 
 async def resolve_tenant(phone_number_id: str) -> str | None:
+    """
+    Map an inbound phone_number_id to its tenant.
+
+    Goes through core.resolve_tenant(), a SECURITY DEFINER function, because at
+    this point no tenant context is set and RLS on agency.integration would
+    hide the very row we need. Querying the table directly here returns nothing
+    and every inbound message is dropped as "unmapped".
+    """
     async with tenant_tx(None) as conn:
         row = await (
             await conn.execute(
-                """
-                SELECT tenant_id FROM agency.integration
-                WHERE provider = 'meta_whatsapp'
-                  AND external_ref = %s
-                  AND is_active
-                """,
+                "SELECT core.resolve_tenant('meta_whatsapp', %s) AS tenant_id",
                 (phone_number_id,),
             )
         ).fetchone()
-    return str(row["tenant_id"]) if row else None
+    return str(row["tenant_id"]) if row and row["tenant_id"] else None
 
 
 async def ingest_messages(tenant_id: str, value: dict[str, Any]) -> int:
@@ -227,7 +235,8 @@ async def ingest_messages(tenant_id: str, value: dict[str, Any]) -> int:
                 INSERT INTO core.event (tenant_id, contact_id, kind, payload)
                 VALUES (%s, %s, 'whatsapp.inbound', %s)
                 """,
-                (tenant_id, contact["id"], {"type": msg.get("type"), "body": body}),
+                (tenant_id, contact["id"],
+                 Jsonb({"type": msg.get("type"), "body": body})),
             )
             count += 1
 
@@ -267,7 +276,7 @@ async def ingest_statuses(tenant_id: str, value: dict[str, Any]) -> int:
                     UPDATE core.message SET status = %s, error = %s
                      WHERE provider = 'meta_cloud' AND provider_msg_id = %s
                     """,
-                    (status, {"errors": st.get("errors")}, st.get("id")),
+                    (status, Jsonb({"errors": st.get("errors")}), st.get("id")),
                 )
             count += 1
     return count
@@ -338,7 +347,7 @@ async def consent_record(req: ConsentGrant) -> dict[str, str]:
                 RETURNING id
                 """,
                 (req.tenant_id, req.contact_id, req.channel, req.purpose,
-                 req.basis, req.granted, req.evidence),
+                 req.basis, req.granted, Jsonb(req.evidence)),
             )
         ).fetchone()
 
@@ -440,8 +449,8 @@ async def score_lead(req: LeadScoreRequest) -> dict[str, Any]:
             VALUES (%s, %s, 'lead.scored', %s)
             """,
             (req.tenant_id, lead["contact_id"],
-             {"lead_id": req.lead_id, "score": score, "band": band,
-              "reasons": reasons}),
+             Jsonb({"lead_id": req.lead_id, "score": score, "band": band,
+                    "reasons": reasons})),
         )
 
     return {"lead_id": req.lead_id, "score": score, "band": band, "reasons": reasons}

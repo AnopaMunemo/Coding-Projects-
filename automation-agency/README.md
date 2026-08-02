@@ -20,7 +20,7 @@ after the first three clients.
 | [1](#1-the-why--niche-selection) | The Why | Which two niches, and why these two in South Africa |
 | [2](#2-the-offers) | The Offers | Exactly what you sell at each price point |
 | [3](#3-the-setup--technical-build) | The Setup | Architecture, n8n, PostgreSQL 18, Python, integrations |
-| [4](#4-the-upkeep--running-it) | The Upkeep | Runbooks, monitoring, backups, change control, cost control |
+| [4](#4-the-upkeep--running-it) | The Upkeep | Runbooks, monitoring, backups, change control, testing, cost control |
 | [5](#5-the-presentation-layer) | The Presentation | Manus.im, Skiper-ui, Motion.dev, BKLit UI, the portal |
 | [6](#6-the-pitch) | The Pitch | Scripts, discovery, objections, proposals, pricing conversations |
 | [7](#7-target-identification) | Targeting | How to spot a business that is missing these systems |
@@ -378,15 +378,19 @@ order. `004_analytics.sql` ends with a guardrail that **refuses to apply** if an
 table carrying `tenant_id` is missing row-level security. That check is the
 difference between a rough week and a client-losing data leak.
 
-> **Validation status.** All five migrations have been applied cleanly against
-> PostgreSQL 18.4, and the following invariants are verified: cross-tenant RLS
-> isolation under `agency_app`; empty tenant context returning zero rows; the
-> consent gate failing closed, opening on consent, closing on withdrawal, and
-> staying closed under suppression; room and practitioner double-booking
-> rejection with correct rebooking after cancellation; the PG18 temporal
-> primary key rejecting overlapping room closures; the portal role reading only
-> its own tenant through the analytics views and being unable to write; and the
-> RLS guardrail correctly failing a deliberately unprotected table.
+> **Validation status.** All five migrations apply cleanly against PostgreSQL
+> 18.4. Database invariants verified: cross-tenant RLS isolation under
+> `agency_app`; empty tenant context returning zero rows; the consent gate
+> failing closed, opening on consent, closing on withdrawal, and staying closed
+> under suppression; room and practitioner double-booking rejection with
+> correct rebooking after cancellation; the PG18 temporal primary key rejecting
+> overlapping room closures; the portal role reading only its own tenant
+> through the analytics views and being unable to write; and the RLS guardrail
+> correctly failing a deliberately unprotected table.
+>
+> The gateway is covered by [`tools/smoke_test.py`](tools/smoke_test.py) —
+> **28 assertions, all passing** against a live PG18 instance. See
+> [§4.7](#47-testing).
 
 > **Escrow `N8N_ENCRYPTION_KEY` somewhere off this machine, today.** Lose it and
 > every stored credential for every client becomes unrecoverable ciphertext.
@@ -666,7 +670,52 @@ silently eat a retainer. Three controls:
 - Reply inside the 24-hour service window as free-form session messages rather
   than firing a new template.
 
-### 4.7 Incident response
+### 4.7 Testing
+
+Run [`tools/smoke_test.py`](tools/smoke_test.py) after any change to
+`gateway.py` or `db/*.sql`, and after every deploy. Exit code 0 or you do not
+ship.
+
+```bash
+export ADMIN_DATABASE_URL=postgresql://agency_admin@127.0.0.1:5432/agency
+export GATEWAY_API_KEY=... META_APP_SECRET=... META_VERIFY_TOKEN=...
+python tools/smoke_test.py
+```
+
+It covers 28 assertions across the paths that are expensive to get wrong:
+
+| Area | What it proves |
+|---|---|
+| Webhook signature | Valid HMAC accepted; forged and missing signatures rejected 401 and write nothing |
+| Meta handshake | Correct verify token echoes the challenge; wrong token 403 |
+| Tenant routing | A webhook lands in exactly one tenant, and provably not in another |
+| Unmapped numbers | A `phone_number_id` you don't manage is dropped, not misrouted |
+| Idempotency | Meta's retries store one row, not two |
+| Internal auth | Missing or wrong API key rejected |
+| Consent gate | Fails closed, opens on consent, closes on withdrawal, stays closed under suppression, ledger append-only |
+| Lead scoring | Hot outranks cold, bounded 0–100, explainable, unknown lead 404 |
+
+**Three bugs this suite caught that review did not**, all of which would have
+reached production silently:
+
+1. **psycopg 3 does not adapt `dict` to `jsonb`.** Every jsonb write raised
+   `cannot adapt type 'dict'`, which aborted the surrounding transaction and
+   rolled back the rows that had already succeeded inside it. Inbound
+   WhatsApp messages, consent records and lead scores all vanished with a
+   `200 OK` on the wire. Every jsonb parameter now uses `Jsonb(...)`.
+2. **The RLS bootstrap deadlock.** A webhook arrives with a `phone_number_id`
+   and nothing else, so `app.tenant_id` is not set yet — but
+   `agency.integration` is under RLS keyed on exactly that. `tenant_id = NULL`
+   matches nothing, so *every* inbound message was dropped as "unmapped". Fixed
+   with `core.resolve_tenant()`, a narrow `SECURITY DEFINER` lookup, rather
+   than by loosening the table policy.
+3. The same `dict`→`jsonb` failure in `prospect_audit.py`, which silently
+   produced an empty call queue.
+
+The lesson worth keeping: none of these threw at import, in review, or in a
+type check. They only appeared under a real request against a real database.
+
+### 4.8 Incident response
 
 | Severity | Definition | Response | Comms |
 |---|---|---|---|
@@ -1438,6 +1487,7 @@ automation-agency/
 ├── tools/
 │   ├── gateway.py               FastAPI: webhooks, tenant resolution, consent, scoring
 │   ├── prospect_audit.py        Crawl, score and rank prospects
+│   ├── smoke_test.py            28-assertion integration test — run before every deploy
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── workflows/                   n8n exports, committed nightly

@@ -361,13 +361,49 @@ SELECT core.apply_tenant_rls(t) FROM unnest(ARRAY[
   'core.revenue_event'::regclass
 ]) AS t;
 
--- agency.tenant is the one table the app reads without a tenant context set
--- (it is how a webhook resolves a phone_number_id to a tenant in the first
--- place), so it gets a narrower policy instead.
+-- agency.tenant gets a narrower policy: visible in full only when no tenant
+-- context is set, scoped to itself once one is.
 ALTER TABLE agency.tenant ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agency.tenant FORCE  ROW LEVEL SECURITY;
 CREATE POLICY tenant_self ON agency.tenant
   USING (core.current_tenant() IS NULL OR id = core.current_tenant());
+
+-- ---------------------------------------------------------------------------
+-- The bootstrap problem.
+--
+-- An inbound WhatsApp webhook arrives carrying a phone_number_id and nothing
+-- else. To set app.tenant_id we must first look up which tenant owns that
+-- number — but agency.integration is under RLS keyed on app.tenant_id, which
+-- is not set yet. `tenant_id = NULL` matches no rows, so the lookup returns
+-- nothing and every inbound message is silently dropped as "unmapped".
+--
+-- The fix is one narrow SECURITY DEFINER function rather than loosening the
+-- table policy. It takes an exact provider + external reference and returns a
+-- single tenant id: it cannot be used to enumerate integrations, and the RLS
+-- policy on the table itself stays strict.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION core.resolve_tenant(
+  p_provider     text,
+  p_external_ref text
+) RETURNS uuid
+  LANGUAGE sql STABLE SECURITY DEFINER
+  SET search_path = pg_catalog, pg_temp
+AS $$
+  SELECT tenant_id
+  FROM   agency.integration
+  WHERE  provider = p_provider
+    AND  external_ref = p_external_ref
+    AND  is_active
+  LIMIT  1
+$$;
+
+REVOKE ALL ON FUNCTION core.resolve_tenant(text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION core.resolve_tenant(text, text) TO agency_app;
+
+COMMENT ON FUNCTION core.resolve_tenant IS
+  'Webhook bootstrap: maps a provider external reference (e.g. a WhatsApp '
+  'phone_number_id) to its tenant. SECURITY DEFINER because the caller has no '
+  'tenant context yet and RLS would otherwise hide the row.';
 
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON ALL TABLES IN SCHEMA core, agency, realestate, medspa TO agency_app;

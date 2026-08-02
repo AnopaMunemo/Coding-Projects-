@@ -46,6 +46,9 @@ import httpx
 from bs4 import BeautifulSoup
 from psycopg import AsyncConnection
 from psycopg.rows import dict_row
+# psycopg 3 does not implicitly adapt dict -> jsonb; every jsonb parameter
+# needs an explicit wrapper or the whole transaction aborts.
+from psycopg.types.json import Jsonb
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 PLACES_KEY = os.getenv("GOOGLE_PLACES_API_KEY")
@@ -386,7 +389,7 @@ async def cmd_audit(args: argparse.Namespace) -> None:
                                              ELSE status END
                          WHERE id = %s
                         """,
-                        (audit.signals, audit.detail, pain, fit,
+                        (Jsonb(audit.signals), Jsonb(audit.detail), pain, fit,
                          places.get("google_rating"), places.get("google_review_count"),
                          places.get("last_review_at"),
                          audit.detail.get("listing_links"), row["id"]),

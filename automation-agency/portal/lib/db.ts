@@ -44,9 +44,18 @@ export async function queryForTenant<T = Record<string, unknown>>(
   }
 }
 
-/** R164 500 — space separator, no gap after the R. Getting this wrong reads as foreign. */
-export function rands(cents: number | string | null | undefined): string {
-  const value = Number(cents ?? 0);
+/**
+ * Format a RAND amount: `R164 500` — non-breaking space separator, no gap
+ * after the R. Getting the separator wrong is a small tell that reads as
+ * foreign.
+ *
+ * Takes RANDS, not cents. The analytics views are the single place cents are
+ * converted (`round(sum(x) / 100.0, 2)`), so nothing above them should divide
+ * or multiply by 100 again. Doing it twice turns R169 100 into R16 910 000 —
+ * the kind of error a client spots before you do.
+ */
+export function rands(amount: number | string | null | undefined): string {
+  const value = Number(amount ?? 0);
   return "R" + Math.round(value).toLocaleString("en-ZA").replace(/,/g, " ");
 }
 

@@ -55,6 +55,36 @@ SELECT
 FROM realestate.lead
 GROUP BY 1,2,3;
 
+-- Rolling 30-day headline, computed from the base table rather than rolled up
+-- from the weekly view.
+--
+-- Two reasons this exists. First, percentiles do not re-aggregate: the median
+-- of six weekly medians is not the median. Second, calendar month-to-date is
+-- the wrong window for a dashboard — on the 1st it is empty and on the 2nd it
+-- drops the week straddling the month boundary, so a client logs in and sees
+-- zero leads. Rolling 30 days is always populated and always honest.
+CREATE VIEW analytics.v_headline_realestate WITH (security_invoker = true) AS
+SELECT
+  tenant_id,
+  count(*)                                                     AS leads,
+  count(*) FILTER (WHERE first_response_at IS NOT NULL)        AS responded,
+  count(*) FILTER (WHERE response_seconds <= 300)              AS under_5_min,
+  percentile_disc(0.5) WITHIN GROUP (ORDER BY response_seconds) AS p50_seconds,
+  percentile_disc(0.9) WITHIN GROUP (ORDER BY response_seconds) AS p90_seconds
+FROM realestate.lead
+WHERE received_at >= now() - interval '30 days'
+GROUP BY tenant_id;
+
+-- Same window, for the number that renews the contract.
+CREATE VIEW analytics.v_recovered_30d WITH (security_invoker = true) AS
+SELECT
+  tenant_id,
+  round(sum(amount_cents) / 100.0, 2)                          AS rands,
+  count(*)                                                     AS events
+FROM core.revenue_event
+WHERE occurred_on >= current_date - 30
+GROUP BY tenant_id;
+
 CREATE VIEW analytics.v_pipeline WITH (security_invoker = true) AS
 SELECT
   l.tenant_id,
@@ -132,6 +162,28 @@ JOIN medspa.treatment_type tt
 WHERE a.course_id IS NOT NULL
 GROUP BY a.tenant_id, a.course_id, a.contact_id,
          tt.name, tt.course_sessions, tt.price_cents;
+
+-- ---------------------------------------------------------------------------
+-- The portal needs the client's own trading name and retainer to render "a
+-- 5.1x return against your retainer". It must NOT be able to read setup fees,
+-- operator agreement dates, or the Information Officer's contact details —
+-- and certainly not another client's commercial terms.
+--
+-- Hence a column-scoped grant plus a view with an explicit tenant predicate.
+-- agency.tenant's own policy deliberately opens up when no tenant context is
+-- set (the gateway needs that to resolve an inbound webhook), so this view
+-- does not rely on RLS alone.
+-- ---------------------------------------------------------------------------
+CREATE VIEW analytics.v_tenant_context WITH (security_invoker = true) AS
+SELECT id AS tenant_id, trading_name, niche, plan_tier,
+       mrr_rands AS retainer_rands, timezone
+FROM   agency.tenant
+WHERE  id = core.current_tenant();
+
+GRANT USAGE ON SCHEMA agency TO agency_portal_ro;
+GRANT SELECT (id, trading_name, niche, plan_tier, monthly_retainer_cents,
+              mrr_rands, timezone)
+  ON agency.tenant TO agency_portal_ro;
 
 GRANT SELECT ON ALL TABLES IN SCHEMA analytics TO agency_portal_ro;
 ALTER DEFAULT PRIVILEGES IN SCHEMA analytics

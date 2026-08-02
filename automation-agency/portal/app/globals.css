@@ -18,4 +18,15 @@
 
 :root {
   color-scheme: light dark;
+
+  /*
+   * tailwind.config.ts maps font-sans to this variable. Define it here or the
+   * whole portal silently falls back to the browser default serif — which is
+   * precisely the "nobody looked at this" signal the design is meant to avoid.
+   *
+   * This is the system stack. Replace it with a licensed face before launch;
+   * see portal/README.md.
+   */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }

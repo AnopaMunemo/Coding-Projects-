@@ -30,27 +30,17 @@ async function loadHeadline(tenantId: string): Promise<Headline> {
   const [row] = await queryForTenant<Headline>(
     tenantId,
     `
-    WITH month AS (
-      SELECT COALESCE(sum(rands), 0) AS recovered_rands
-      FROM   analytics.v_revenue_monthly
-      WHERE  month = date_trunc('month', current_date)::date
-    ),
-    speed AS (
-      SELECT COALESCE(sum(leads), 0)       AS leads,
-             COALESCE(sum(responded), 0)   AS responded,
-             COALESCE(sum(under_5_min), 0) AS under_5_min,
-             percentile_disc(0.5) WITHIN GROUP (ORDER BY p50_seconds) AS p50_seconds
-      FROM   analytics.v_lead_response
-      WHERE  week >= date_trunc('month', current_date)::date
-    ),
-    overdue AS (
-      SELECT COALESCE(sum(overdue_touches), 0) AS overdue_touches
-      FROM   analytics.v_pipeline
-    )
-    SELECT month.recovered_rands,
-           (SELECT mrr_rands FROM agency.tenant LIMIT 1) AS retainer_rands,
-           speed.*, overdue.*
-    FROM month, speed, overdue
+    SELECT
+      COALESCE((SELECT rands FROM analytics.v_recovered_30d), 0) AS recovered_rands,
+      (SELECT retainer_rands FROM analytics.v_tenant_context)     AS retainer_rands,
+      COALESCE(h.leads, 0)                                       AS leads,
+      COALESCE(h.responded, 0)                                   AS responded,
+      COALESCE(h.under_5_min, 0)                                 AS under_5_min,
+      h.p50_seconds,
+      COALESCE((SELECT sum(overdue_touches) FROM analytics.v_pipeline), 0)
+                                                                 AS overdue_touches
+    FROM (SELECT 1) _
+    LEFT JOIN analytics.v_headline_realestate h ON true
     `,
   );
   return row;
@@ -68,7 +58,7 @@ export default async function Dashboard() {
     <main className="mx-auto max-w-6xl px-6 py-12">
       <header className="mb-10">
         <p className="text-sm font-medium uppercase tracking-widest text-neutral-500">
-          This month
+          Last 30 days
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Performance</h1>
       </header>
@@ -77,15 +67,15 @@ export default async function Dashboard() {
       <div className="mb-6">
         <KpiCard
           label="Recovered value"
-          value={rands(Number(h.recovered_rands) * 100)}
+          value={rands(h.recovered_rands)}
           caption={
-            `Against a retainer of ${rands(Number(h.retainer_rands) * 100)} — ` +
-            `a ${multiple.toFixed(1)}× return so far this month.`
+            `Against a retainer of ${rands(h.retainer_rands)} — ` +
+            `a ${multiple.toFixed(1)}× return over the last 30 days.`
           }
         />
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2">
         <KpiCard
           index={1}
           label="Median response time"
@@ -96,7 +86,7 @@ export default async function Dashboard() {
           index={2}
           label="Answered within 5 minutes"
           value={`${fastRate.toFixed(0)}%`}
-          caption={`${h.under_5_min} of ${h.leads} enquiries this month.`}
+          caption={`${h.under_5_min} of ${h.leads} enquiries in the last 30 days.`}
         />
         <KpiCard
           index={3}

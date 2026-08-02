@@ -17,18 +17,15 @@ Run:  uvicorn gateway:app --host 0.0.0.0 --port 8000
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import logging
 import os
-import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
-from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 # psycopg 3 will NOT implicitly adapt a Python dict to jsonb -- it raises
 # "cannot adapt type 'dict'". Every jsonb parameter must be wrapped in Jsonb().
@@ -37,6 +34,10 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field
+
+# Pure, dependency-free helpers. Kept in their own module so the unit tests
+# covering them run on a CI runner with nothing but pytest installed.
+from verification import normalise_msisdn, verify_signature as _verify_signature
 
 log = logging.getLogger("gateway")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -47,16 +48,33 @@ META_APP_SECRET = os.environ.get("META_APP_SECRET", "")
 META_VERIFY_TOKEN = os.environ.get("META_VERIFY_TOKEN", "")
 N8N_BASE = os.getenv("N8N_INTERNAL_URL", "http://n8n:5678")
 
-pool: AsyncConnectionPool
+# A bare annotation (`pool: AsyncConnectionPool`) does not bind the name, so
+# every use reads as an undefined name to linters — flake8 F821 — even though
+# it works at runtime once lifespan assigns it. Bind it to None and go through
+# an accessor that fails loudly instead of raising AttributeError on None.
+_pool: AsyncConnectionPool | None = None
+
+
+def get_pool() -> AsyncConnectionPool:
+    if _pool is None:
+        raise RuntimeError(
+            "connection pool is not open — the app's lifespan has not run. "
+            "Import gateway:app and let FastAPI manage it rather than calling "
+            "these functions directly."
+        )
+    return _pool
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global pool
-    pool = AsyncConnectionPool(DATABASE_URL, min_size=2, max_size=12, open=False)
-    await pool.open(wait=True)
-    yield
-    await pool.close()
+    global _pool
+    _pool = AsyncConnectionPool(DATABASE_URL, min_size=2, max_size=12, open=False)
+    await _pool.open(wait=True)
+    try:
+        yield
+    finally:
+        await _pool.close()
+        _pool = None
 
 
 app = FastAPI(title="Automation Agency Gateway", lifespan=lifespan, version="1.0.0")
@@ -82,7 +100,7 @@ async def tenant_tx(tenant_id: str | None):
     context empty — every policy then evaluates to "see nothing", which is the
     correct default for webhook resolution before the tenant is known.
     """
-    async with pool.connection() as conn:  # type: AsyncConnection
+    async with get_pool().connection() as conn:
         conn.row_factory = dict_row
         async with conn.transaction():
             if tenant_id:
@@ -90,27 +108,6 @@ async def tenant_tx(tenant_id: str | None):
                     "SELECT set_config('app.tenant_id', %s, true)", (tenant_id,)
                 )
             yield conn
-
-
-SA_MOBILE = re.compile(r"^(?:\+?27|0)(\d{9})$")
-
-
-def normalise_msisdn(raw: str) -> str | None:
-    """
-    Everything becomes E.164 before it is stored. SA numbers arrive as
-    082 123 4567, 0821234567, 27821234567 and +27 82 123 4567 — often all four
-    inside one client's CRM export. Silent mismatches here look like "WhatsApp
-    is broken" and cost hours.
-    """
-    if not raw:
-        return None
-    digits = re.sub(r"[^\d+]", "", raw)
-    m = SA_MOBILE.match(digits)
-    if m:
-        return f"+27{m.group(1)}"
-    if digits.startswith("+") and 8 <= len(digits) - 1 <= 15:
-        return digits
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -130,17 +127,9 @@ async def verify_whatsapp(request: Request) -> Response:
 
 
 def verify_signature(body: bytes, header: str) -> bool:
-    """
-    Meta signs the raw body with the app secret as sha256. Verify against the
-    bytes exactly as received — re-serialising the parsed JSON changes key
-    order and whitespace and the digest will never match.
-    """
-    if not header.startswith("sha256=") or not META_APP_SECRET:
-        return False
-    expected = hmac.new(
-        META_APP_SECRET.encode(), body, hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(expected, header.removeprefix("sha256="))
+    """Thin wrapper binding the configured app secret. Logic lives in
+    verification.py so it can be tested without importing this module."""
+    return _verify_signature(body, header, META_APP_SECRET)
 
 
 @app.post("/webhooks/whatsapp")
@@ -458,6 +447,6 @@ async def score_lead(req: LeadScoreRequest) -> dict[str, Any]:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    async with pool.connection() as conn:
+    async with get_pool().connection() as conn:
         await conn.execute("SELECT 1")
     return {"status": "ok"}

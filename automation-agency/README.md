@@ -388,7 +388,7 @@ difference between a rough week and a client-losing data leak.
 > through the analytics views and being unable to write; and the RLS guardrail
 > correctly failing a deliberately unprotected table.
 >
-> The gateway is covered by [`tools/smoke_test.py`](tools/smoke_test.py) —
+> The gateway is covered by [`tools/smoke_check.py`](tools/smoke_check.py) —
 > **28 assertions, all passing** against a live PG18 instance. See
 > [§4.7](#47-testing).
 
@@ -672,14 +672,14 @@ silently eat a retainer. Three controls:
 
 ### 4.7 Testing
 
-Run [`tools/smoke_test.py`](tools/smoke_test.py) after any change to
+Run [`tools/smoke_check.py`](tools/smoke_check.py) after any change to
 `gateway.py` or `db/*.sql`, and after every deploy. Exit code 0 or you do not
 ship.
 
 ```bash
 export ADMIN_DATABASE_URL=postgresql://agency_admin@127.0.0.1:5432/agency
 export GATEWAY_API_KEY=... META_APP_SECRET=... META_VERIFY_TOKEN=...
-python tools/smoke_test.py
+python tools/smoke_check.py
 ```
 
 It covers 28 assertions across the paths that are expensive to get wrong:
@@ -1487,7 +1487,9 @@ automation-agency/
 ├── tools/
 │   ├── gateway.py               FastAPI: webhooks, tenant resolution, consent, scoring
 │   ├── prospect_audit.py        Crawl, score and rank prospects
-│   ├── smoke_test.py            28-assertion integration test — run before every deploy
+│   ├── smoke_check.py           28-assertion integration test (needs a live DB)
+│   ├── verification.py          Pure boundary functions: E.164, webhook signatures
+│   ├── test_gateway_helpers.py  31 unit tests — these are what CI runs
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── workflows/                   n8n exports, committed nightly

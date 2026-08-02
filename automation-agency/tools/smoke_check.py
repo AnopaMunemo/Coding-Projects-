@@ -11,9 +11,14 @@ verification, tenant routing, idempotency, and the POPIA consent gate.
     uvicorn gateway:app --port 8000
 
     # terminal 2
-    python smoke_test.py
+    python smoke_check.py
 
 Exit code 0 means every assertion held. Anything else and you do not deploy.
+
+Named smoke_check, not smoke_test: pytest collects `*_test.py` by default, and
+this script needs a live database and a running gateway. Collected by accident
+it fails at import on a missing env var and takes the whole CI run down with
+it. The pure-function tests that CI *can* run live in test_gateway_helpers.py.
 """
 
 from __future__ import annotations

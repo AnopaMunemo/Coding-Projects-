@@ -1,0 +1,18 @@
+{
+  "name": "buy_and_hold",
+  "sharpe": 0.474,
+  "sortino": 0.6219,
+  "cagr": 0.122631,
+  "ann_vol": 0.163773,
+  "max_dd": -0.208725,
+  "calmar": 0.5875,
+  "total_return": 2.726875,
+  "n_trades": 2,
+  "n_bars": 2866,
+  "ticker": "GC=F",
+  "data_source": "yfinance:GC=F",
+  "start": "2015-01-01",
+  "ran_on": "2026-05-28T09:53:15",
+  "friction_per_side": 0.0003,
+  "bh_sharpe": 0.474
+}

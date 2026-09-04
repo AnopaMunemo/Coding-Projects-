@@ -537,6 +537,13 @@
 <script>
 (function(){
 
+  /* Bumped by hand on every deploy specifically so the debug panel can
+     self-certify which build is actually running on a given device —
+     several rounds of on-device debugging have been ambiguous about
+     whether a fresh load was really serving the latest code. Check this
+     against what was just shipped before trusting any other reading. */
+  const BUILD_ID = 'restore-2024-r13-maxheight-fixedthreshold';
+
   /* =====================================================================
      CAMPAIGN_CONFIG — the ONE place brand / campaign / persona data lives.
      Swapping this build for a different brand or campaign later should be
@@ -837,6 +844,7 @@
         + '\ncardRect: ' + (cardRect ? (Math.round(cardRect.width) + 'x' + Math.round(cardRect.height) + ' @y' + Math.round(cardRect.top)) : 'no card el');
     } catch (err) { adSlotInfo = 'adSlot read failed: ' + err.message; }
     panel.textContent =
+      'BUILD:' + BUILD_ID + '\n' +
       avInfo + '\n' +
       'adInjected:' + state.adInjected + ' adDismissed:' + state.adDismissed + '\n' +
       adSlotInfo + '\n' +

@@ -200,16 +200,27 @@
      instant display toggle cannot have a paint/timing bug the way an
      animated reveal can, and getting the ad to reliably show at all
      takes priority over how it shows. */
-  .ad-slot{ display:none; margin:0 14px; }
-  .ad-slot.ad-slot--active{ display:block; margin:6px 14px 20px; }
-  .ad-slot.ad-slot--dismissed{ display:none !important; }
+  /* Restored to exactly what was on the phone the last time the user
+     confirmed the ad genuinely worked (commit 1c4c615, right before the
+     checkout feature was added) — reverting the later max-height-is-
+     unreliable and display-toggle rewrites, which were reasoned fixes
+     but never actually confirmed working on-device themselves. */
+  .ad-slot{
+    max-height:0; opacity:0; overflow:hidden; margin:0 14px;
+    transition: max-height .55s cubic-bezier(.2,.8,.2,1), opacity .45s ease, margin .55s ease;
+  }
+  .ad-slot.ad-slot--active{ max-height:260px; opacity:1; margin:6px 14px 20px; }
+  .ad-slot.ad-slot--dismissed{ max-height:0 !important; opacity:0 !important; margin:0 14px !important; }
 
   .whiskas-ad-card{
     position:relative; border-radius: var(--sx-radius); padding:16px;
     background: linear-gradient(135deg, var(--wk-purple) 0%, var(--wk-purple-light) 100%);
     box-shadow: 0 10px 26px rgba(142,26,115,.4);
     color:#fff; border:none; width:100%; text-align:left;
+    transform: translateY(6px);
+    transition: transform .55s cubic-bezier(.2,.8,.2,1);
   }
+  .ad-slot--active .whiskas-ad-card{ transform: translateY(0); }
   .whiskas-ad-card:focus-visible{ outline:3px solid #fff; outline-offset:2px; }
 
   .ad-sponsored{ font-size:9px; letter-spacing:.6px; text-transform:uppercase; opacity:.75; font-weight:700; margin:0 0 6px; }
@@ -759,26 +770,16 @@
     }
   }
 
-  /* Real-device debug telemetry (screenshots showing adInjected:true,
-     opacity:1, h:auto — a real, correctly-painted ad — while the visible
-     content was already past "Payday Deals", the section right after the
-     ad in the feed) proved the fixed-pixel scroll threshold itself was
-     the bug: on this device's actual content heights, scrollTop already
-     passes 620 well AFTER the ad's own position has scrolled out of the
-     top of the viewport, so the trigger fired for an ad the user could no
-     longer scroll back up to without knowing to. A fixed pixel guess can
-     never track real content height across devices reliably. Trigger off
-     the ad's own document position instead, via IntersectionObserver on a
-     sentinel placed right where the ad lives — this fires exactly when
-     that point in the feed is about to enter view, regardless of device,
-     font metrics, or content height. */
-  let adTriggerObserver = null;
-
+  /* Restored to exactly what was on the phone the last time the user
+     confirmed the ad genuinely worked (commit 1c4c615, right before the
+     checkout feature was added): a plain fixed-pixel scroll threshold
+     with a directly-attached scroll listener. The IntersectionObserver
+     rewrite that replaced this was reasoned from real telemetry but was
+     never itself confirmed working on-device — reverting to the last
+     confirmed-good mechanism rather than layering another unconfirmed
+     theory on top. */
   function onScroll(){
     updateDebugPanel();
-  }
-
-  function onScrollThresholdFallback(){
     if (state.adDismissed || state.adInjected) return;
     if (state.rafPending) return;
     state.rafPending = true;
@@ -790,30 +791,9 @@
     });
   }
 
-  function setupAdTrigger(){
-    appViewport().addEventListener('scroll', onScroll, { passive: true });
-
-    const sentinel = $('adTriggerSentinel');
-    if (sentinel && 'IntersectionObserver' in window){
-      adTriggerObserver = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !state.adDismissed && !state.adInjected){
-            showAd();
-          }
-        });
-      }, { root: appViewport(), threshold: 0 });
-      adTriggerObserver.observe(sentinel);
-    } else {
-      // Very old browsers without IntersectionObserver: fall back to the
-      // fixed-pixel approach rather than never triggering at all.
-      appViewport().addEventListener('scroll', onScrollThresholdFallback, { passive: true });
-    }
-  }
-
   function showAd(){
     state.adInjected = true;
-    if (adTriggerObserver) adTriggerObserver.disconnect();
-    else appViewport().removeEventListener('scroll', onScrollThresholdFallback);
+    appViewport().removeEventListener('scroll', onScroll);
     $('adSlot').classList.add('ad-slot--active');
     updateDebugPanel();
   }
@@ -1096,7 +1076,7 @@
   /* ===================== EVENT WIRING ===================== */
 
   function wireEvents(){
-    setupAdTrigger();
+    appViewport().addEventListener('scroll', onScroll, { passive: true });
 
     document.body.addEventListener('click', (e) => {
       const closeBtn = e.target.closest('#adCloseBtn');

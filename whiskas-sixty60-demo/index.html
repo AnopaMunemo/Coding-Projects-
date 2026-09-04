@@ -625,7 +625,16 @@
   /* ===================== SCROLL TRIGGER / DISMISS ===================== */
 
   function hydrateSessionState(){
-    state.adDismissed = sessionStorage.getItem(CAMPAIGN_CONFIG.scrollTrigger.sessionStorageKey) === '1';
+    /* sessionStorage can throw (not just return null) when a browser denies
+       storage access to this sandboxed iframe — e.g. iOS Safari's cross-site
+       tracking prevention on an embedded Artifact. Left unguarded, that throw
+       aborts init() before wireEvents() runs, so the ad's scroll listener
+       never gets attached and the ad silently never appears. */
+    try {
+      state.adDismissed = sessionStorage.getItem(CAMPAIGN_CONFIG.scrollTrigger.sessionStorageKey) === '1';
+    } catch (err) {
+      state.adDismissed = false;
+    }
     if (state.adDismissed){
       const slot = $('adSlot');
       if (slot) slot.classList.add('ad-slot--dismissed');
@@ -654,7 +663,12 @@
     evt.stopPropagation();
     $('adSlot').classList.add('ad-slot--dismissed');
     state.adDismissed = true;
-    sessionStorage.setItem(CAMPAIGN_CONFIG.scrollTrigger.sessionStorageKey, '1');
+    try {
+      sessionStorage.setItem(CAMPAIGN_CONFIG.scrollTrigger.sessionStorageKey, '1');
+    } catch (err) {
+      /* Storage blocked — dismiss still works for this page view via
+         in-memory state.adDismissed, it just won't persist across a reload. */
+    }
   }
 
   /* ===================== BOTTOM SHEET ===================== */

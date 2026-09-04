@@ -63,7 +63,15 @@
   .app-viewport{
     width:100%; height:100%; overflow-y:auto; overflow-x:hidden;
     border-radius:30px; background: var(--sx-bg); position:relative;
-    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    scrollbar-width:none;
+    /* Deliberately NOT setting -webkit-overflow-scrolling:touch here.
+       That legacy property only mattered pre-iOS-13 (native overflow
+       scrolling is momentum-based by default now) and its old WebKit
+       code path is documented to both coalesce/delay scroll-event
+       delivery during a fling and desync a position:sticky descendant's
+       hit-test target from its painted position after scrolling —
+       matching a "the ad takes a while to trigger and the sticky
+       header's cart button stops registering taps" report exactly. */
   }
   .app-viewport::-webkit-scrollbar{ display:none; }
 
@@ -77,6 +85,11 @@
     position: sticky; top:0; z-index:10;
     background: var(--sx-neutral-975);
     padding: 14px 14px 10px;
+    /* Force its own compositing layer — the standard mitigation for the
+       iOS Safari bug where a sticky element's click/tap target can drift
+       out of alignment with where it's actually painted after scrolling. */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
   }
   .sx-header-top{ display:flex; align-items:center; justify-content:space-between; }
   .sx-logo{ font-weight:800; font-size:20px; color:#fff; letter-spacing:-.3px; }

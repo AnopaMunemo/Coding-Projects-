@@ -196,27 +196,20 @@
      layout space open instantly via a separate, non-animated class
      (invisible the whole time), then fade+slide in on opacity/transform
      only — properties WebKit animates reliably. */
-  .ad-slot{
-    max-height:0; overflow:hidden; margin:0 14px;
-    opacity:0; transform: translateY(10px);
-    transition: opacity .45s ease, transform .45s ease;
-  }
-  .ad-slot.ad-slot--space{ max-height:600px; overflow:visible; margin:6px 14px 20px; }
-  .ad-slot.ad-slot--active{ opacity:1; transform: translateY(0); }
-  .ad-slot.ad-slot--dismissed{
-    max-height:0 !important; overflow:hidden !important; margin:0 14px !important;
-    opacity:0 !important; transform: translateY(10px) !important;
-  }
+  /* No transition/animation at all here anymore, deliberately — a plain,
+     instant display toggle cannot have a paint/timing bug the way an
+     animated reveal can, and getting the ad to reliably show at all
+     takes priority over how it shows. */
+  .ad-slot{ display:none; margin:0 14px; }
+  .ad-slot.ad-slot--active{ display:block; margin:6px 14px 20px; }
+  .ad-slot.ad-slot--dismissed{ display:none !important; }
 
   .whiskas-ad-card{
     position:relative; border-radius: var(--sx-radius); padding:16px;
     background: linear-gradient(135deg, var(--wk-purple) 0%, var(--wk-purple-light) 100%);
     box-shadow: 0 10px 26px rgba(142,26,115,.4);
     color:#fff; border:none; width:100%; text-align:left;
-    transform: translateY(6px);
-    transition: transform .55s cubic-bezier(.2,.8,.2,1);
   }
-  .ad-slot--active .whiskas-ad-card{ transform: translateY(0); }
   .whiskas-ad-card:focus-visible{ outline:3px solid #fff; outline-offset:2px; }
 
   .ad-sponsored{ font-size:9px; letter-spacing:.6px; text-transform:uppercase; opacity:.75; font-weight:700; margin:0 0 6px; }
@@ -821,19 +814,7 @@
     state.adInjected = true;
     if (adTriggerObserver) adTriggerObserver.disconnect();
     else appViewport().removeEventListener('scroll', onScrollThresholdFallback);
-    const slot = $('adSlot');
-    slot.classList.add('ad-slot--space');
-    // Force the browser to commit "space allocated, still opacity:0" as a
-    // real paint before starting the fade-in — otherwise both classes can
-    // land in the same style recalc and the transition never has a
-    // "before" state to animate from.
-    void slot.offsetHeight;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        slot.classList.add('ad-slot--active');
-        updateDebugPanel();
-      });
-    });
+    $('adSlot').classList.add('ad-slot--active');
     updateDebugPanel();
   }
 
@@ -863,8 +844,17 @@
     let adSlotInfo = 'n/a';
     try {
       const slot = $('adSlot');
+      const card = $('whiskasAdCard');
       const scs = getComputedStyle(slot);
-      adSlotInfo = 'class:[' + slot.className + ']\nopacity:' + scs.opacity + ' maxH:' + scs.maxHeight + ' h:' + scs.height;
+      const slotRect = slot.getBoundingClientRect();
+      const cardRect = card ? card.getBoundingClientRect() : null;
+      // getBoundingClientRect can't lie the way computed style sometimes
+      // can (e.g. Safari returning the literal string "auto" for height
+      // on boxes with no explicitly-set height) — a real 0x0 here vs real
+      // pixels is the ground truth for whether it's actually rendered.
+      adSlotInfo = 'class:[' + slot.className + ']\ndisplay:' + scs.display + ' opacity:' + scs.opacity
+        + '\nslotRect: ' + Math.round(slotRect.width) + 'x' + Math.round(slotRect.height) + ' @y' + Math.round(slotRect.top)
+        + '\ncardRect: ' + (cardRect ? (Math.round(cardRect.width) + 'x' + Math.round(cardRect.height) + ' @y' + Math.round(cardRect.top)) : 'no card el');
     } catch (err) { adSlotInfo = 'adSlot read failed: ' + err.message; }
     panel.textContent =
       avInfo + '\n' +

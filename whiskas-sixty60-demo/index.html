@@ -720,7 +720,8 @@
   }
 
   function adSlotHtml(){
-    return `<div class="ad-slot" id="adSlot" aria-live="polite">
+    return `<div id="adTriggerSentinel" style="height:1px;"></div>
+    <div class="ad-slot" id="adSlot" aria-live="polite">
       <article class="whiskas-ad-card" id="whiskasAdCard" role="button" tabindex="0"
                aria-label="Open Whiskas reorder for ${CAMPAIGN_CONFIG.brand.product.shortName}">
         <button class="ad-close" id="adCloseBtn" aria-label="Dismiss Whiskas ad">✕</button>
@@ -765,8 +766,26 @@
     }
   }
 
+  /* Real-device debug telemetry (screenshots showing adInjected:true,
+     opacity:1, h:auto — a real, correctly-painted ad — while the visible
+     content was already past "Payday Deals", the section right after the
+     ad in the feed) proved the fixed-pixel scroll threshold itself was
+     the bug: on this device's actual content heights, scrollTop already
+     passes 620 well AFTER the ad's own position has scrolled out of the
+     top of the viewport, so the trigger fired for an ad the user could no
+     longer scroll back up to without knowing to. A fixed pixel guess can
+     never track real content height across devices reliably. Trigger off
+     the ad's own document position instead, via IntersectionObserver on a
+     sentinel placed right where the ad lives — this fires exactly when
+     that point in the feed is about to enter view, regardless of device,
+     font metrics, or content height. */
+  let adTriggerObserver = null;
+
   function onScroll(){
     updateDebugPanel();
+  }
+
+  function onScrollThresholdFallback(){
     if (state.adDismissed || state.adInjected) return;
     if (state.rafPending) return;
     state.rafPending = true;
@@ -778,8 +797,30 @@
     });
   }
 
+  function setupAdTrigger(){
+    appViewport().addEventListener('scroll', onScroll, { passive: true });
+
+    const sentinel = $('adTriggerSentinel');
+    if (sentinel && 'IntersectionObserver' in window){
+      adTriggerObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !state.adDismissed && !state.adInjected){
+            showAd();
+          }
+        });
+      }, { root: appViewport(), threshold: 0 });
+      adTriggerObserver.observe(sentinel);
+    } else {
+      // Very old browsers without IntersectionObserver: fall back to the
+      // fixed-pixel approach rather than never triggering at all.
+      appViewport().addEventListener('scroll', onScrollThresholdFallback, { passive: true });
+    }
+  }
+
   function showAd(){
     state.adInjected = true;
+    if (adTriggerObserver) adTriggerObserver.disconnect();
+    else appViewport().removeEventListener('scroll', onScrollThresholdFallback);
     const slot = $('adSlot');
     slot.classList.add('ad-slot--space');
     // Force the browser to commit "space allocated, still opacity:0" as a
@@ -793,7 +834,6 @@
         updateDebugPanel();
       });
     });
-    appViewport().removeEventListener('scroll', onScroll);
     updateDebugPanel();
   }
 
@@ -1066,7 +1106,7 @@
   /* ===================== EVENT WIRING ===================== */
 
   function wireEvents(){
-    appViewport().addEventListener('scroll', onScroll, { passive: true });
+    setupAdTrigger();
 
     document.body.addEventListener('click', (e) => {
       const closeBtn = e.target.closest('#adCloseBtn');

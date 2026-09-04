@@ -247,6 +247,33 @@
   .sheet-cta:hover{ background: var(--sx-primary-hover); }
   .sheet-cta:disabled{ opacity:.6; }
 
+  /* ===================== CHECKOUT "DID YOU FORGET ANYTHING?" ===================== */
+  .checkout-title{ font-size:16px; font-weight:800; margin:4px 0 14px; }
+  .checkout-recs-scroll{
+    display:flex; gap:10px; overflow-x:auto; padding: 2px 20px 6px; margin: 0 -20px 18px;
+  }
+  .checkout-rec-card{
+    flex:0 0 110px; background:#fff; border:1px solid var(--sx-neutral-300); border-radius: var(--sx-radius);
+    padding:10px; text-align:left; font-family:inherit;
+  }
+  .checkout-rec-media{ position:relative; height:60px; display:flex; align-items:center; justify-content:center; font-size:30px; }
+  .checkout-rec-price{ font-weight:800; font-size:13px; margin:6px 0 2px; color:var(--sx-neutral-950); }
+  .checkout-rec-name{
+    font-size:10.5px; color:var(--sx-neutral-500); line-height:1.25; margin:0; font-weight:600;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:26px;
+  }
+  .checkout-whiskas-card{
+    background: linear-gradient(135deg, var(--wk-purple) 0%, var(--wk-purple-light) 100%);
+    border:none; box-shadow: 0 6px 14px rgba(142,26,115,.3);
+  }
+  .checkout-whiskas-tag{
+    display:block; font-size:8px; text-transform:uppercase; letter-spacing:.4px;
+    opacity:.85; font-weight:800; margin-bottom:2px; color:#fff;
+  }
+  .checkout-whiskas-img{ width:56px; height:56px; object-fit:contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,.3)); }
+  .checkout-whiskas-card .checkout-rec-price{ color:#fff; }
+  .checkout-whiskas-card .checkout-rec-name{ color:#fff; opacity:.95; }
+
   /* ===================== BOWL SEQUENCE ===================== */
   .bowl-stage{ text-align:center; padding-top:6px; }
   .bowl-status-label{ font-size:16px; font-weight:800; margin:0 0 2px; color:var(--sx-neutral-950); min-height:22px; }
@@ -330,7 +357,11 @@
     .phone-notch{ display:none; }
     .app-viewport{ border-radius:0; }
     .pitch-caption{ display:none; }
-    .persona-switcher{ position:fixed; top:10px; right:10px; z-index:60; }
+    /* Bottom-right (not top-right) so the fixed gear button never sits on
+       top of the header's own cart icon, which lives in that same corner
+       once the frame fills the real viewport edge to edge. */
+    .persona-switcher{ position:fixed; top:auto; bottom:16px; right:16px; z-index:60; }
+    .persona-popover{ top:auto; bottom:50px; right:0; }
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -355,7 +386,7 @@
         <header class="sx-header">
           <div class="sx-header-top">
             <span class="sx-logo">Sixty6<span>O</span></span>
-            <button class="sx-cart" aria-label="Cart">🛒</button>
+            <button class="sx-cart" id="cartBtn" aria-label="Cart, checkout">🛒</button>
           </div>
           <div class="sx-search-row">
             <input class="sx-search" placeholder="Search Sixty60" disabled>
@@ -389,9 +420,15 @@
 
       <!-- Bottom sheet: quick-add / product detail + 60-Minute Bowl sequence -->
       <div class="sheet-overlay" id="sheetOverlay">
-        <div class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+        <div class="bottom-sheet" id="bottomSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
           <button class="sheet-close" id="sheetCloseBtn" aria-label="Close">✕</button>
           <div class="sheet-handle"></div>
+
+          <div class="sheet-stage" id="stageCheckout" hidden>
+            <h3 class="checkout-title" id="checkoutTitle" tabindex="-1"></h3>
+            <div class="checkout-recs-scroll" id="checkoutRecsScroll"></div>
+            <button class="sheet-cta" id="checkoutProceedBtn">Proceed to checkout</button>
+          </div>
 
           <div class="sheet-stage" id="stageDetail">
             <div class="sheet-product-row">
@@ -456,7 +493,8 @@
   ===================================================================== */
   const CAMPAIGN_CONFIG = {
     host: {
-      appName: "Sixty60"
+      appName: "Sixty60",
+      checkoutPromptTitle: "Did you forget anything?"
     },
     brand: {
       name: "Whiskas",
@@ -479,7 +517,8 @@
       sheetCtaLabel: "Reorder now",
       personalizedGreetingTemplate: "Hi {ownerName} — {catName}'s bowl is running low. {brandShort} {size}, one tap, 60 min.",
       countdown: { startLabel: "60:00", endLabel: "00:00", durationMs: 4200 },
-      successCaptionTemplate: "Delivered in 60 minutes — enjoy, {catName}!"
+      successCaptionTemplate: "Delivered in 60 minutes — enjoy, {catName}!",
+      checkoutNudgeTemplate: "Don't forget {catName}'s food!"
     },
     personas: [
       { id: "nthombi", ownerName: "Nthombi", catName: "Bobbi" },
@@ -527,6 +566,15 @@
       { emoji:"🧺", name:"Omo Auto Washing Powder 2kg", price:"R109.99", priceOriginal:"R129.99", perKg:null, badge:"SAVE R20", delivery:"60 MIN" },
       { emoji:"🧽", name:"Handy Andy All Purpose 750ml", price:"R24.99", priceOriginal:null, perKg:null, badge:null, delivery:"60 MIN" }
     ]}
+  ];
+
+  /* Generic checkout-time "did you forget anything?" nudges — filler
+     alongside the Whiskas recommendation, same brand-agnostic spirit as
+     the mock rails above. */
+  const MOCK_CHECKOUT_RECS = [
+    { emoji:"🥛", name:"Fresh Full Cream Milk 2L", price:"R32.99" },
+    { emoji:"🍫", name:"Kit Kat 4 Finger 41.5g", price:"R14.99" },
+    { emoji:"🧻", name:"Ultra Bath Tissue 9s", price:"R64.99" }
   ];
 
   const QUICK_SHOPS = [
@@ -701,24 +749,45 @@
 
   /* ===================== BOTTOM SHEET ===================== */
 
-  function openModal(){
-    state.modalOpen = true;
-    state.lastFocusedElement = document.activeElement;
-
+  function renderCheckoutStage(){
     const persona = getActivePersona();
     const product = CAMPAIGN_CONFIG.brand.product;
 
-    $('sheetProductImg').src = product.imageDataUri;
-    $('sheetProductImg').alt = product.name;
-    $('sheetTitle').textContent = product.name;
-    $('sheetSize').textContent = product.size;
-    $('sheetPrice').textContent = product.price;
-    $('sheetPersonalLine').textContent = fillTemplate(CAMPAIGN_CONFIG.campaign.personalizedGreetingTemplate, persona);
-    $('sheetCta').textContent = CAMPAIGN_CONFIG.campaign.sheetCtaLabel;
-    $('sheetCta').disabled = false;
+    $('checkoutTitle').textContent = CAMPAIGN_CONFIG.host.checkoutPromptTitle;
 
+    const genericHtml = MOCK_CHECKOUT_RECS.map(p => `
+      <div class="checkout-rec-card">
+        <div class="checkout-rec-media">
+          <button class="add-btn" style="position:absolute;top:-4px;right:-4px;" aria-label="Add ${p.name}" onclick="window.__whiskasDemo.onAddTap(this)">+</button>
+          <span>${p.emoji}</span>
+        </div>
+        <p class="checkout-rec-price">${p.price}</p>
+        <p class="checkout-rec-name">${p.name}</p>
+      </div>`).join('');
+
+    const whiskasHtml = `
+      <button class="checkout-rec-card checkout-whiskas-card" id="checkoutWhiskasCard"
+              aria-label="Open Whiskas reorder for ${product.shortName}">
+        <span class="checkout-whiskas-tag">Sponsored · ${CAMPAIGN_CONFIG.brand.name}</span>
+        <div class="checkout-rec-media">
+          <img class="checkout-whiskas-img" src="${product.imageDataUri}" alt="${product.name}">
+        </div>
+        <p class="checkout-rec-price">${product.price}</p>
+        <p class="checkout-rec-name" id="checkoutWhiskasHeadline"></p>
+      </button>`;
+
+    $('checkoutRecsScroll').innerHTML = genericHtml + whiskasHtml;
+    $('checkoutWhiskasHeadline').textContent = fillTemplate(CAMPAIGN_CONFIG.campaign.checkoutNudgeTemplate, persona);
+  }
+
+  function openModal(stage){
+    stage = stage || 'detail';
+    state.modalOpen = true;
+    state.lastFocusedElement = document.activeElement;
+
+    $('stageCheckout').hidden = true;
+    $('stageDetail').hidden = true;
     $('stageBowl').hidden = true;
-    $('stageDetail').hidden = false;
     $('stageBowl').className = 'sheet-stage bowl-stage';
     $('bowlFillRect').style.transitionDuration = '0s';
     $('ringFill').style.transitionDuration = '0s';
@@ -726,10 +795,32 @@
     $('countdownLabel').textContent = CAMPAIGN_CONFIG.campaign.countdown.startLabel;
     $('confettiLayer').innerHTML = '';
 
+    let focusTarget;
+    if (stage === 'checkout'){
+      renderCheckoutStage();
+      $('stageCheckout').hidden = false;
+      $('bottomSheet').setAttribute('aria-labelledby', 'checkoutTitle');
+      focusTarget = $('checkoutTitle');
+    } else {
+      const persona = getActivePersona();
+      const product = CAMPAIGN_CONFIG.brand.product;
+      $('sheetProductImg').src = product.imageDataUri;
+      $('sheetProductImg').alt = product.name;
+      $('sheetTitle').textContent = product.name;
+      $('sheetSize').textContent = product.size;
+      $('sheetPrice').textContent = product.price;
+      $('sheetPersonalLine').textContent = fillTemplate(CAMPAIGN_CONFIG.campaign.personalizedGreetingTemplate, persona);
+      $('sheetCta').textContent = CAMPAIGN_CONFIG.campaign.sheetCtaLabel;
+      $('sheetCta').disabled = false;
+      $('stageDetail').hidden = false;
+      $('bottomSheet').setAttribute('aria-labelledby', 'sheetTitle');
+      focusTarget = $('sheetTitle');
+    }
+
     $('sheetOverlay').style.display = 'flex';
     requestAnimationFrame(() => $('sheetOverlay').classList.add('open'));
     document.addEventListener('keydown', onSheetKeydown);
-    $('sheetTitle').focus({ preventScroll:true });
+    focusTarget.focus({ preventScroll:true });
   }
 
   function closeModal(){
@@ -855,6 +946,10 @@
     renderAdCopy();
     if (state.modalOpen){
       $('sheetPersonalLine').textContent = fillTemplate(CAMPAIGN_CONFIG.campaign.personalizedGreetingTemplate, getActivePersona());
+      const checkoutHeadlineEl = $('checkoutWhiskasHeadline');
+      if (checkoutHeadlineEl){
+        checkoutHeadlineEl.textContent = fillTemplate(CAMPAIGN_CONFIG.campaign.checkoutNudgeTemplate, getActivePersona());
+      }
     }
   }
 
@@ -876,15 +971,24 @@
       if (closeBtn){ dismissAd(e); return; }
 
       const adCard = e.target.closest('#whiskasAdCard');
-      if (adCard){ openModal(); return; }
+      if (adCard){ openModal('detail'); return; }
+
+      const checkoutWhiskasCard = e.target.closest('#checkoutWhiskasCard');
+      if (checkoutWhiskasCard){ openModal('detail'); return; }
     });
 
     document.addEventListener('keydown', (e) => {
       const adCard = document.activeElement;
       if (adCard && adCard.id === 'whiskasAdCard' && (e.key === 'Enter' || e.key === ' ')){
         e.preventDefault();
-        openModal();
+        openModal('detail');
       }
+    });
+
+    $('cartBtn').addEventListener('click', () => openModal('checkout'));
+    $('checkoutProceedBtn').addEventListener('click', () => {
+      showToast('Redirecting to secure checkout…');
+      closeModal();
     });
 
     $('sheetCloseBtn').addEventListener('click', closeModal);

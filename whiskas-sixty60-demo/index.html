@@ -85,6 +85,12 @@
     position: sticky; top:0; z-index:10;
     background: var(--sx-neutral-975);
     padding: 14px 14px 10px;
+    /* viewport-fit=cover (needed so the app fills a notched iPhone edge
+       to edge) means content can render under the status bar / Dynamic
+       Island unless compensated — and Safari can swallow touches in that
+       reserved top strip before they ever reach the page. Push the
+       header's real content below it. */
+    padding-top: max(14px, env(safe-area-inset-top));
     /* Force its own compositing layer — the standard mitigation for the
        iOS Safari bug where a sticky element's click/tap target can drift
        out of alignment with where it's actually painted after scrolling. */
@@ -373,7 +379,7 @@
     /* Bottom-right (not top-right) so the fixed gear button never sits on
        top of the header's own cart icon, which lives in that same corner
        once the frame fills the real viewport edge to edge. */
-    .persona-switcher{ position:fixed; top:auto; bottom:16px; right:16px; z-index:60; }
+    .persona-switcher{ position:fixed; top:auto; bottom: max(16px, env(safe-area-inset-bottom)); right:16px; z-index:60; }
     .persona-popover{ top:auto; bottom:50px; right:0; }
   }
 

@@ -188,12 +188,25 @@
   .card-pill{ align-self:flex-start; font-size:9px; padding:2px 8px; }
 
   /* ===================== AD SLOT / WHISKAS CARD ===================== */
+  /* Deliberately NOT animating max-height (the previous approach): real
+     iOS Safari was confirmed (via on-device debug telemetry) to add the
+     "active" class correctly — the JS state was right — but never
+     actually paint the reveal. Animating max-height on overflow:hidden
+     is a long-documented unreliable technique in WebKit. Instead: snap
+     layout space open instantly via a separate, non-animated class
+     (invisible the whole time), then fade+slide in on opacity/transform
+     only — properties WebKit animates reliably. */
   .ad-slot{
-    max-height:0; opacity:0; overflow:hidden; margin:0 14px;
-    transition: max-height .55s cubic-bezier(.2,.8,.2,1), opacity .45s ease, margin .55s ease;
+    max-height:0; overflow:hidden; margin:0 14px;
+    opacity:0; transform: translateY(10px);
+    transition: opacity .45s ease, transform .45s ease;
   }
-  .ad-slot.ad-slot--active{ max-height:260px; opacity:1; margin:6px 14px 20px; }
-  .ad-slot.ad-slot--dismissed{ max-height:0 !important; opacity:0 !important; margin:0 14px !important; }
+  .ad-slot.ad-slot--space{ max-height:600px; overflow:visible; margin:6px 14px 20px; }
+  .ad-slot.ad-slot--active{ opacity:1; transform: translateY(0); }
+  .ad-slot.ad-slot--dismissed{
+    max-height:0 !important; overflow:hidden !important; margin:0 14px !important;
+    opacity:0 !important; transform: translateY(10px) !important;
+  }
 
   .whiskas-ad-card{
     position:relative; border-radius: var(--sx-radius); padding:16px;
@@ -767,7 +780,19 @@
 
   function showAd(){
     state.adInjected = true;
-    $('adSlot').classList.add('ad-slot--active');
+    const slot = $('adSlot');
+    slot.classList.add('ad-slot--space');
+    // Force the browser to commit "space allocated, still opacity:0" as a
+    // real paint before starting the fade-in — otherwise both classes can
+    // land in the same style recalc and the transition never has a
+    // "before" state to animate from.
+    void slot.offsetHeight;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        slot.classList.add('ad-slot--active');
+        updateDebugPanel();
+      });
+    });
     appViewport().removeEventListener('scroll', onScroll);
     updateDebugPanel();
   }
@@ -795,9 +820,16 @@
     try {
       listenerAttached = String(!state.adDismissed && !state.adInjected);
     } catch (err) { listenerAttached = 'err:' + err.message; }
+    let adSlotInfo = 'n/a';
+    try {
+      const slot = $('adSlot');
+      const scs = getComputedStyle(slot);
+      adSlotInfo = 'class:[' + slot.className + ']\nopacity:' + scs.opacity + ' maxH:' + scs.maxHeight + ' h:' + scs.height;
+    } catch (err) { adSlotInfo = 'adSlot read failed: ' + err.message; }
     panel.textContent =
       avInfo + '\n' +
       'adInjected:' + state.adInjected + ' adDismissed:' + state.adDismissed + '\n' +
+      adSlotInfo + '\n' +
       'scrollListenerShouldBeActive:' + listenerAttached + '\n' +
       'winSize:' + window.innerWidth + 'x' + window.innerHeight + '\n' +
       'mobileMQ(<=600px):' + window.matchMedia('(max-width:600px)').matches + '\n' +

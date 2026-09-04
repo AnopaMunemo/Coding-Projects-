@@ -29,6 +29,10 @@
     --wk-purple-deep: #5C0F52;
     --wk-gold-start: #F9CE44;
     --wk-gold-end: #FADE07;
+    /* Exposed only so the debug panel's JS can read the resolved
+       env() values via getComputedStyle — not used for layout. */
+    --debug-sat: env(safe-area-inset-top, 0px);
+    --debug-sab: env(safe-area-inset-bottom, 0px);
   }
 
   *{box-sizing:border-box;}
@@ -325,6 +329,14 @@
   }
   .toast.show{ opacity:1; transform: translateX(-50%) translateY(0); }
 
+  /* ===================== TEMP DEBUG PANEL ===================== */
+  #debugPanel{
+    position:fixed; left:6px; bottom:6px; z-index:999;
+    background: rgba(0,0,0,.82); color:#4ade80; font-family: monospace; font-size:10px;
+    line-height:1.5; padding:8px 10px; border-radius:8px; white-space:pre; pointer-events:none;
+    max-width: calc(100vw - 12px); max-width: calc(100dvw - 12px); overflow:auto;
+  }
+
   /* ===================== PERSONA SWITCHER ===================== */
   .persona-switcher{ position:absolute; top:0; right:-56px; }
   .persona-gear{
@@ -435,6 +447,10 @@
         <div id="railsContainer2"></div>
 
         <div class="toast" id="toast"></div>
+
+        <!-- TEMPORARY debug panel for diagnosing the phone-only ad-trigger
+             issue. Screenshot this and send it over, then it comes out. -->
+        <div id="debugPanel"></div>
       </div>
 
       <!-- Bottom sheet: quick-add / product detail + 60-Minute Bowl sequence -->
@@ -737,6 +753,7 @@
   }
 
   function onScroll(){
+    updateDebugPanel();
     if (state.adDismissed || state.adInjected) return;
     if (state.rafPending) return;
     state.rafPending = true;
@@ -752,6 +769,40 @@
     state.adInjected = true;
     $('adSlot').classList.add('ad-slot--active');
     appViewport().removeEventListener('scroll', onScroll);
+    updateDebugPanel();
+  }
+
+  /* ===================== TEMP DEBUG PANEL ===================== */
+  const debugErrorLog = [];
+  window.addEventListener('error', (e) => {
+    debugErrorLog.push((e.message || 'error') + ' @' + ((e.filename || '').split('/').pop()) + ':' + e.lineno);
+    updateDebugPanel();
+  });
+
+  function updateDebugPanel(){
+    const panel = $('debugPanel');
+    if (!panel) return;
+    let av, avInfo;
+    try {
+      av = appViewport();
+      avInfo = 'scrollTop:' + av.scrollTop + ' / need:' + CAMPAIGN_CONFIG.scrollTrigger.thresholdPx
+        + '\nscrollHeight:' + av.scrollHeight + ' clientHeight:' + av.clientHeight;
+    } catch (err) {
+      avInfo = 'appViewport read failed: ' + err.message;
+    }
+    const rootStyle = getComputedStyle(document.documentElement);
+    let listenerAttached = 'unknown';
+    try {
+      listenerAttached = String(!state.adDismissed && !state.adInjected);
+    } catch (err) { listenerAttached = 'err:' + err.message; }
+    panel.textContent =
+      avInfo + '\n' +
+      'adInjected:' + state.adInjected + ' adDismissed:' + state.adDismissed + '\n' +
+      'scrollListenerShouldBeActive:' + listenerAttached + '\n' +
+      'winSize:' + window.innerWidth + 'x' + window.innerHeight + '\n' +
+      'mobileMQ(<=600px):' + window.matchMedia('(max-width:600px)').matches + '\n' +
+      'safe-area top/bottom:' + rootStyle.getPropertyValue('--debug-sat') + ' / ' + rootStyle.getPropertyValue('--debug-sab') + '\n' +
+      'errors:' + (debugErrorLog.length ? debugErrorLog.join(' | ') : 'none');
   }
 
   function dismissAd(evt){
@@ -1055,12 +1106,18 @@
   /* ===================== INIT ===================== */
 
   function init(){
-    renderQuickShops();
-    renderRails();
-    renderAdCopy();
-    renderPersonaOptions();
-    hydrateSessionState();
-    wireEvents();
+    try {
+      renderQuickShops();
+      renderRails();
+      renderAdCopy();
+      renderPersonaOptions();
+      hydrateSessionState();
+      wireEvents();
+    } catch (err) {
+      debugErrorLog.push('INIT FAILED: ' + err.message);
+    }
+    updateDebugPanel();
+    setInterval(updateDebugPanel, 400);
   }
 
   document.addEventListener('DOMContentLoaded', init);

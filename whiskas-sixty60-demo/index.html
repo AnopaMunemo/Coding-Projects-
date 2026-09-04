@@ -43,7 +43,7 @@
     padding: 36px 16px 60px;
     color: var(--sx-neutral-950);
   }
-  button{font-family:inherit; cursor:pointer;}
+  button{font-family:inherit; cursor:pointer; touch-action: manipulation;}
 
   /* ===================== STAGE / PHONE FRAME ===================== */
   .stage{ position:relative; }
@@ -96,7 +96,7 @@
   .sx-logo span{ color: var(--sx-primary); }
   .sx-cart{
     background: var(--sx-secondary); color:#fff; border:none; border-radius:var(--sx-radius-full);
-    width:34px; height:34px; font-size:15px; display:flex; align-items:center; justify-content:center;
+    width:42px; height:42px; font-size:16px; display:flex; align-items:center; justify-content:center;
   }
   .sx-search-row{ display:flex; gap:8px; margin-top:12px; }
   .sx-search{
@@ -998,7 +998,22 @@
       }
     });
 
-    $('cartBtn').addEventListener('click', () => openModal('checkout'));
+    /* Belt-and-braces for the cart button specifically, since it's the one
+       control reported unresponsive on a real iPhone after scrolling (the
+       sticky-header hit-test bug fixed elsewhere in this file may not be
+       the whole story). touchend fires well before any synthesized click
+       and is a lower-level, more reliable signal on iOS; preventDefault on
+       it stops the click that would otherwise follow, and the timestamp
+       guard stops both from ever double-opening the sheet regardless. */
+    let cartTapHandledAt = 0;
+    function handleCartTap(){
+      const now = Date.now();
+      if (now - cartTapHandledAt < 500) return;
+      cartTapHandledAt = now;
+      openModal('checkout');
+    }
+    $('cartBtn').addEventListener('click', handleCartTap);
+    $('cartBtn').addEventListener('touchend', (e) => { e.preventDefault(); handleCartTap(); }, { passive: false });
     $('checkoutProceedBtn').addEventListener('click', () => {
       showToast('Redirecting to secure checkout…');
       closeModal();
